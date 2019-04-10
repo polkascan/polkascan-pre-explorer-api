@@ -1,8 +1,8 @@
-# Polkascan Explorer API
-Polkascan Explorer API Python Application
+# Polkascan PRE Explorer API
+Polkascan PRE Explorer API Python Application
 
 ## Description
-The Polkascan Explorer API Application makes the data which is produced by the Polkascan Harvester Application accessible to developers by provideing JSON-API data on RESTful endpoint. The Polkascan Explorer API Application will provide endpoints to all harvested data.
+The Polkascan PRE Explorer API Application makes the data which is produced by the Polkascan PRE Harvester Application accessible to developers by provideing JSON-API data on RESTful endpoint. The Polkascan PRE Explorer API Application will provide endpoints to all harvested data.
 
 ## License
-https://github.com/polkascan/polkascan-explorer-api/blob/master/LICENSE
+https://github.com/polkascan/polkascan-pre-explorer-api/blob/master/LICENSE
