@@ -99,9 +99,49 @@ class PolkascanNetworkStatisticsResource(BaseResource):
                 'id': network_id,
                 'attributes': {
                     'best_block': self.session.query(func.max(Block.id)).one()[0],
-                    'total_extrinsics': int(self.session.query(func.sum(Block.count_extrinsics)).one()[0]),
+                    'total_signed_extrinsics': Extrinsic.query(self.session).filter_by(signed=1).count(),
+                    'total_events': Event.query(self.session).count(),
                     'total_blocks': Block.query(self.session).count(),
                     'total_runtimes': Metadata.query(self.session).count()
                 }
             },
         )
+
+
+class PolkascanBalanceTransferResource(BaseResource):
+
+    def on_get(self, req, resp, network_id=None):
+        page = int(req.params.get('page[number]', 0))
+        page_size = int(req.params.get('page[size]', 25))
+
+        balance_transfers = Extrinsic.query(self.session).filter(
+            Extrinsic.module_id == 'balances' and Extrinsic.call_id == 'transfer'
+        ).order_by(Extrinsic.block_id.desc())[page * page_size: page * page_size + page_size]
+
+        resp.status = falcon.HTTP_200
+        resp.media = self.get_jsonapi_response(
+            data=[{
+                'type': 'balancetransfer',
+                'id': '{}-{}'.format(transfer.block_id, transfer.extrinsic_idx),
+                'attributes': {
+                    'destination': transfer.params[0]['value'],
+                    'value': transfer.params[1]['value']
+                }
+            } for transfer in balance_transfers],
+        )
+
+
+class PolkascanExtrinsicDetailResource(BaseResource):
+
+    def on_get(self, req, resp, extrinsic_id=None):
+
+        rich_extrinsic = None
+
+        if extrinsic_id:
+            rich_extrinsic = Extrinsic.query(self.session).get(extrinsic_id.split('-'))
+
+        if not rich_extrinsic:
+            resp.status = falcon.HTTP_404
+        else:
+            resp.status = falcon.HTTP_200
+            resp.media = self.get_jsonapi_response(data=rich_extrinsic.serialize())
