@@ -38,8 +38,9 @@ session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 app = falcon.API(middleware=[ContextMiddleware(), SQLAlchemySessionManager(session_factory)])
 
 # Application routes
-app.add_route('/system/block/{block_id}', polkascan.PolkascanBlockDetailsResource())
 app.add_route('/system/block', polkascan.PolkascanBlockListResource())
+app.add_route('/system/block/{block_id}', polkascan.PolkascanBlockDetailsResource())
 app.add_route('/system/extrinsic/{extrinsic_id}', polkascan.PolkascanExtrinsicDetailResource())
+app.add_route('/system/event/{event_id}', polkascan.PolkascanEventDetailResource())
 app.add_route('/system/networkstats/{network_id}', polkascan.PolkascanNetworkStatisticsResource())
 app.add_route('/balance/transfers', polkascan.PolkascanBalanceTransferResource())

@@ -49,11 +49,18 @@ class BaseResource(object):
         if links:
             result['links'] = links
 
-        if relationships:
-            result['data']['relationships'] = relationships
-
         if included:
             result['included'] = included
+
+        if relationships:
+            result['data']['relationships'] = {}
+
+            if 'included' not in result:
+                result['included'] = []
+
+            for key, objects in relationships.items():
+                result['data']['relationships'][key] = {'data': [{'type': obj.serialize_type, 'id': obj.serialize_id()} for obj in objects]}
+                result['included'] += [obj.serialize() for obj in objects]
 
         return result
 

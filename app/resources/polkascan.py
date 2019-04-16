@@ -24,6 +24,7 @@ from sqlalchemy import func
 from app.models.data import Block, Extrinsic, Event
 from app.models.data import Metadata
 from app.resources.base import BaseResource
+from app.utils.ss58 import ss58_decode, ss58_encode
 
 
 class PolkascanHeadResource(BaseResource):
@@ -51,20 +52,21 @@ class PolkascanBlockDetailsResource(BaseResource):
             resp.status = falcon.HTTP_404
         else:
 
-            # Attach extrinsics
-            extrinsics = Extrinsic.query(self.session).filter_by(block_id=block.id).order_by('extrinsic_idx')
-
-            relationships = {
-                'extrinsics': [{'data': {'type': extrinsic.serialize_type, 'id': extrinsic.serialize_id()}} for extrinsic in extrinsics]
-            }
-
-            included = [extrinsic.serialize() for extrinsic in extrinsics]
+            # Attach extrinsics and events
+            relationships = None
+            #TODO make generic
+            if req.params.get('include'):
+                include_relationships = req.params.get('include')
+                relationships = {}
+                if 'extrinsics' in include_relationships:
+                    relationships['extrinsics'] = Extrinsic.query(self.session).filter_by(block_id=block.id).order_by('extrinsic_idx')
+                if 'events' in include_relationships:
+                    relationships['events'] = Event.query(self.session).filter_by(block_id=block.id, system=0).order_by('event_idx')
 
             resp.status = falcon.HTTP_200
             resp.media = self.get_jsonapi_response(
                 data=block.serialize(),
-                relationships=relationships,
-                included=included
+                relationships=relationships
             )
 
 
@@ -72,12 +74,17 @@ class PolkascanBlockListResource(BaseResource):
 
     def on_get(self, req, resp):
 
+        # TODO make generic
         page = int(req.params.get('page[number]', 0))
-        page_size = int(req.params.get('page[size]', 25))
+        page_size = max(int(req.params.get('page[size]', 25)), 100)
 
         blocks = Block.query(self.session).order_by(
             Block.id.desc()
         )[page * page_size: page * page_size + page_size]
+
+        #req.params['page[number]'] = str(req.params.get('page[number]', 0))
+        #req.params['page[size]'] = str(max(int(req.params.get('page[size]', 25)), 100))
+        #response = serializer.get_collection(self.session, req.params, 'block')
 
         resp.status = falcon.HTTP_200
         resp.media = self.get_jsonapi_response(
@@ -110,13 +117,27 @@ class PolkascanNetworkStatisticsResource(BaseResource):
 
 class PolkascanBalanceTransferResource(BaseResource):
 
-    def on_get(self, req, resp, network_id=None):
+    def on_get(self, req, resp):
         page = int(req.params.get('page[number]', 0))
         page_size = int(req.params.get('page[size]', 25))
 
         balance_transfers = Extrinsic.query(self.session).filter(
             Extrinsic.module_id == 'balances' and Extrinsic.call_id == 'transfer'
-        ).order_by(Extrinsic.block_id.desc())[page * page_size: page * page_size + page_size]
+        ).order_by(Extrinsic.block_id.desc())
+
+        # Apply filters
+
+        if req.params.get('filter[address]'):
+
+            if len(req.params.get('filter[address]')) == 64:
+                account_id = req.params.get('filter[address]')
+            else:
+                account_id = ss58_decode(req.params.get('filter[address]'))
+
+            balance_transfers = balance_transfers.filter_by(address=account_id)
+
+        # Apply paging
+        balance_transfers = balance_transfers[page * page_size: page * page_size + page_size]
 
         resp.status = falcon.HTTP_200
         resp.media = self.get_jsonapi_response(
@@ -124,7 +145,9 @@ class PolkascanBalanceTransferResource(BaseResource):
                 'type': 'balancetransfer',
                 'id': '{}-{}'.format(transfer.block_id, transfer.extrinsic_idx),
                 'attributes': {
-                    'destination': transfer.params[0]['value'],
+                    'block_id': transfer.block_id,
+                    'sender': ss58_encode(transfer.address),
+                    'destination': ss58_encode(transfer.params[0]['value']),
                     'value': transfer.params[1]['value']
                 }
             } for transfer in balance_transfers],
@@ -145,3 +168,16 @@ class PolkascanExtrinsicDetailResource(BaseResource):
         else:
             resp.status = falcon.HTTP_200
             resp.media = self.get_jsonapi_response(data=rich_extrinsic.serialize())
+
+
+class PolkascanEventDetailResource(BaseResource):
+
+    def on_get(self, req, resp, event_id=None):
+
+        if event_id:
+            event = Event.query(self.session).get(event_id.split('-'))
+            resp.status = falcon.HTTP_200
+            resp.media = self.get_jsonapi_response(data=event.serialize())
+        else:
+            resp.status = falcon.HTTP_404
+
