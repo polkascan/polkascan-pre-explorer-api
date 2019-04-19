@@ -24,6 +24,7 @@ from sqlalchemy import func
 from app.models.data import Block, Extrinsic, Event
 from app.models.data import Metadata
 from app.resources.base import BaseResource
+from app.settings import MAX_RESOURCE_PAGE_SIZE
 from app.utils.ss58 import ss58_decode, ss58_encode
 
 
@@ -76,15 +77,11 @@ class PolkascanBlockListResource(BaseResource):
 
         # TODO make generic
         page = int(req.params.get('page[number]', 0))
-        page_size = max(int(req.params.get('page[size]', 25)), 100)
+        page_size = min(int(req.params.get('page[size]', 25)), MAX_RESOURCE_PAGE_SIZE)
 
         blocks = Block.query(self.session).order_by(
             Block.id.desc()
         )[page * page_size: page * page_size + page_size]
-
-        #req.params['page[number]'] = str(req.params.get('page[number]', 0))
-        #req.params['page[size]'] = str(max(int(req.params.get('page[size]', 25)), 100))
-        #response = serializer.get_collection(self.session, req.params, 'block')
 
         resp.status = falcon.HTTP_200
         resp.media = self.get_jsonapi_response(
@@ -92,6 +89,42 @@ class PolkascanBlockListResource(BaseResource):
             meta={
                 'best_block': self.session.query(func.max(Block.id)).one()[0]
             }
+        )
+
+
+class PolkascanExtrinsicListResource(BaseResource):
+
+    def on_get(self, req, resp):
+
+        # TODO make generic
+        page = int(req.params.get('page[number]', 0))
+        page_size = min(int(req.params.get('page[size]', 25)), MAX_RESOURCE_PAGE_SIZE)
+
+        extrinsics = Extrinsic.query(self.session).order_by(
+            Extrinsic.block_id.desc(), Extrinsic.extrinsic_idx.asc()
+        )[page * page_size: (page * page_size) + page_size]
+
+        resp.status = falcon.HTTP_200
+        resp.media = self.get_jsonapi_response(
+            data=[extrinsic.serialize() for extrinsic in extrinsics]
+        )
+
+
+class PolkascanEventsListResource(BaseResource):
+
+    def on_get(self, req, resp):
+
+        # TODO make generic
+        page = int(req.params.get('page[number]', 0))
+        page_size = min(int(req.params.get('page[size]', 25)), MAX_RESOURCE_PAGE_SIZE)
+
+        events = Event.query(self.session).filter(Event.system == False).order_by(
+            Event.block_id.desc(), Event.event_idx.asc()
+        )[page * page_size: (page * page_size) + page_size]
+
+        resp.status = falcon.HTTP_200
+        resp.media = self.get_jsonapi_response(
+            data=[event.serialize() for event in events]
         )
 
 
@@ -126,7 +159,7 @@ class PolkascanBalanceTransferResource(BaseResource):
         ).order_by(Extrinsic.block_id.desc())
 
         # Apply filters
-
+        # TODO make generic
         if req.params.get('filter[address]'):
 
             if len(req.params.get('filter[address]')) == 64:
@@ -137,6 +170,7 @@ class PolkascanBalanceTransferResource(BaseResource):
             balance_transfers = balance_transfers.filter_by(address=account_id)
 
         # Apply paging
+        # TODO make generic
         balance_transfers = balance_transfers[page * page_size: page * page_size + page_size]
 
         resp.status = falcon.HTTP_200

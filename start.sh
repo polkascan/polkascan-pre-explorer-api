@@ -12,11 +12,6 @@ echo "Wait for database..."
 # Let the DB start
 sleep 10;
 
-echo "Running migrations..."
-
-# Run migrations
-alembic upgrade head
-
 echo "Running gunicorn..."
 
 if [ "$ENVIRONMENT" = "dev" ]; then

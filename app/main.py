@@ -40,7 +40,9 @@ app = falcon.API(middleware=[ContextMiddleware(), SQLAlchemySessionManager(sessi
 # Application routes
 app.add_route('/system/block', polkascan.PolkascanBlockListResource())
 app.add_route('/system/block/{block_id}', polkascan.PolkascanBlockDetailsResource())
+app.add_route('/system/extrinsic', polkascan.PolkascanExtrinsicListResource())
 app.add_route('/system/extrinsic/{extrinsic_id}', polkascan.PolkascanExtrinsicDetailResource())
+app.add_route('/system/event', polkascan.PolkascanEventsListResource())
 app.add_route('/system/event/{event_id}', polkascan.PolkascanEventDetailResource())
 app.add_route('/system/networkstats/{network_id}', polkascan.PolkascanNetworkStatisticsResource())
 app.add_route('/balance/transfers', polkascan.PolkascanBalanceTransferResource())

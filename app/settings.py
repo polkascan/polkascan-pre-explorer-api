@@ -22,6 +22,8 @@ DB_CONNECTION = "mysql+mysqlconnector://root:root@mysql:3306/polkascan"
 
 DEBUG = False
 
+MAX_RESOURCE_PAGE_SIZE = 100
+
 try:
     from app.local_settings import *
 except ImportError:
