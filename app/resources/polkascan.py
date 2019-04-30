@@ -21,114 +21,66 @@
 import falcon
 from sqlalchemy import func
 
-from app.models.data import Block, Extrinsic, Event
+from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime
 from app.models.data import Metadata
-from app.resources.base import BaseResource
-from app.settings import MAX_RESOURCE_PAGE_SIZE
+from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.utils.ss58 import ss58_decode, ss58_encode
 
 
-class PolkascanHeadResource(BaseResource):
-    def on_get(self, req, resp):
-        head_obj = Block.get_head(self.session)
+class BlockDetailsResource(JSONAPIDetailResource):
 
-        resp.status = falcon.HTTP_200
-        resp.media = {
-            "head": head_obj
+    def get_item_url_name(self):
+        return 'block_id'
+
+    def get_item(self, item_id):
+        if item_id.isnumeric():
+            return Block.query(self.session).filter_by(id=item_id).first()
+        else:
+            return Block.query(self.session).filter_by(hash=item_id).first()
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'extrinsics' in include_list:
+            relationships['extrinsics'] = Extrinsic.query(self.session).filter_by(block_id=item.id).order_by(
+                'extrinsic_idx')
+        if 'events' in include_list:
+            relationships['events'] = Event.query(self.session).filter_by(block_id=item.id, system=0).order_by(
+                'event_idx')
+
+        return relationships
+
+
+class BlockListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return Block.query(self.session).order_by(
+            Block.id.desc()
+        )
+
+    def get_meta(self):
+        return {
+            'best_block': self.session.query(func.max(Block.id)).one()[0]
         }
 
 
-class PolkascanBlockDetailsResource(BaseResource):
+class ExtrinsicListResource(JSONAPIListResource):
 
-    def on_get(self, req, resp, block_id=None):
-        if block_id:
-            if block_id.isnumeric():
-                block = Block.query(self.session).filter_by(id=block_id).first()
-            else:
-                block = Block.query(self.session).filter_by(hash=block_id).first()
-        else:
-            block = None
-
-        if not block:
-            resp.status = falcon.HTTP_404
-        else:
-
-            # Attach extrinsics and events
-            relationships = None
-            #TODO make generic
-            if req.params.get('include'):
-                include_relationships = req.params.get('include')
-                relationships = {}
-                if 'extrinsics' in include_relationships:
-                    relationships['extrinsics'] = Extrinsic.query(self.session).filter_by(block_id=block.id).order_by('extrinsic_idx')
-                if 'events' in include_relationships:
-                    relationships['events'] = Event.query(self.session).filter_by(block_id=block.id, system=0).order_by('event_idx')
-
-            resp.status = falcon.HTTP_200
-            resp.media = self.get_jsonapi_response(
-                data=block.serialize(),
-                relationships=relationships
-            )
-
-
-class PolkascanBlockListResource(BaseResource):
-
-    def on_get(self, req, resp):
-
-        # TODO make generic
-        page = int(req.params.get('page[number]', 0))
-        page_size = min(int(req.params.get('page[size]', 25)), MAX_RESOURCE_PAGE_SIZE)
-
-        blocks = Block.query(self.session).order_by(
-            Block.id.desc()
-        )[page * page_size: page * page_size + page_size]
-
-        resp.status = falcon.HTTP_200
-        resp.media = self.get_jsonapi_response(
-            data=[block.serialize() for block in blocks],
-            meta={
-                'best_block': self.session.query(func.max(Block.id)).one()[0]
-            }
-        )
-
-
-class PolkascanExtrinsicListResource(BaseResource):
-
-    def on_get(self, req, resp):
-
-        # TODO make generic
-        page = int(req.params.get('page[number]', 0))
-        page_size = min(int(req.params.get('page[size]', 25)), MAX_RESOURCE_PAGE_SIZE)
-
-        extrinsics = Extrinsic.query(self.session).order_by(
+    def get_query(self):
+        return Extrinsic.query(self.session).order_by(
             Extrinsic.block_id.desc(), Extrinsic.extrinsic_idx.asc()
-        )[page * page_size: (page * page_size) + page_size]
-
-        resp.status = falcon.HTTP_200
-        resp.media = self.get_jsonapi_response(
-            data=[extrinsic.serialize() for extrinsic in extrinsics]
         )
 
 
-class PolkascanEventsListResource(BaseResource):
+class EventsListResource(JSONAPIListResource):
 
-    def on_get(self, req, resp):
-
-        # TODO make generic
-        page = int(req.params.get('page[number]', 0))
-        page_size = min(int(req.params.get('page[size]', 25)), MAX_RESOURCE_PAGE_SIZE)
-
-        events = Event.query(self.session).filter(Event.system == False).order_by(
+    def get_query(self):
+        return Event.query(self.session).filter(Event.system == False).order_by(
             Event.block_id.desc(), Event.event_idx.asc()
-        )[page * page_size: (page * page_size) + page_size]
-
-        resp.status = falcon.HTTP_200
-        resp.media = self.get_jsonapi_response(
-            data=[event.serialize() for event in events]
         )
 
 
-class PolkascanNetworkStatisticsResource(BaseResource):
+class PolkascanNetworkStatisticsResource(JSONAPIResource):
 
     def on_get(self, req, resp, network_id=None):
         resp.status = falcon.HTTP_200
@@ -148,70 +100,105 @@ class PolkascanNetworkStatisticsResource(BaseResource):
         )
 
 
-class PolkascanBalanceTransferResource(BaseResource):
+class BalanceTransferResource(JSONAPIListResource):
 
-    def on_get(self, req, resp):
-        page = int(req.params.get('page[number]', 0))
-        page_size = int(req.params.get('page[size]', 25))
-
-        balance_transfers = Extrinsic.query(self.session).filter(
+    def get_query(self):
+        return Extrinsic.query(self.session).filter(
             Extrinsic.module_id == 'balances' and Extrinsic.call_id == 'transfer'
         ).order_by(Extrinsic.block_id.desc())
 
-        # Apply filters
-        # TODO make generic
-        if req.params.get('filter[address]'):
+    def apply_filters(self, query, params):
+        if params.get('filter[address]'):
 
-            if len(req.params.get('filter[address]')) == 64:
-                account_id = req.params.get('filter[address]')
+            if len(params.get('filter[address]')) == 64:
+                account_id = params.get('filter[address]')
             else:
-                account_id = ss58_decode(req.params.get('filter[address]'))
+                account_id = ss58_decode(params.get('filter[address]'))
 
-            balance_transfers = balance_transfers.filter_by(address=account_id)
+            return query.filter_by(address=account_id)
 
-        # Apply paging
-        # TODO make generic
-        balance_transfers = balance_transfers[page * page_size: page * page_size + page_size]
+        return query
 
-        resp.status = falcon.HTTP_200
-        resp.media = self.get_jsonapi_response(
-            data=[{
+    def serialize_item(self, item):
+        return {
                 'type': 'balancetransfer',
-                'id': '{}-{}'.format(transfer.block_id, transfer.extrinsic_idx),
+                'id': '{}-{}'.format(item.block_id, item.extrinsic_idx),
                 'attributes': {
-                    'block_id': transfer.block_id,
-                    'sender': ss58_encode(transfer.address),
-                    'destination': ss58_encode(transfer.params[0]['value']),
-                    'value': transfer.params[1]['value']
+                    'block_id': item.block_id,
+                    'sender': ss58_encode(item.address),
+                    'destination': ss58_encode(item.params[0]['value']),
+                    'value': item.params[1]['value']
                 }
-            } for transfer in balance_transfers],
+        }
+
+
+class ExtrinsicDetailResource(JSONAPIDetailResource):
+
+    def get_item_url_name(self):
+        return 'extrinsic_id'
+
+    def get_item(self, item_id):
+        extrinsic = Extrinsic.query(self.session).get(item_id.split('-'))
+
+        if extrinsic and extrinsic.address:
+            extrinsic.address = ss58_encode(extrinsic.address)
+
+        return extrinsic
+
+
+class EventDetailResource(JSONAPIDetailResource):
+
+    def get_item_url_name(self):
+        return 'event_id'
+
+    def get_item(self, item_id):
+        return Event.query(self.session).get(item_id.split('-'))
+
+
+class RuntimeListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return Runtime.query(self.session).order_by(
+            Runtime.id.asc()
         )
 
 
-class PolkascanExtrinsicDetailResource(BaseResource):
+class RuntimeDetailResource(JSONAPIDetailResource):
 
-    def on_get(self, req, resp, extrinsic_id=None):
-
-        rich_extrinsic = None
-
-        if extrinsic_id:
-            rich_extrinsic = Extrinsic.query(self.session).get(extrinsic_id.split('-'))
-
-        if not rich_extrinsic:
-            resp.status = falcon.HTTP_404
-        else:
-            resp.status = falcon.HTTP_200
-            resp.media = self.get_jsonapi_response(data=rich_extrinsic.serialize())
+    def get_item(self, item_id):
+        return Runtime.query(self.session).get(item_id)
 
 
-class PolkascanEventDetailResource(BaseResource):
+class RuntimeCallListResource(JSONAPIListResource):
 
-    def on_get(self, req, resp, event_id=None):
+    def get_query(self):
+        return RuntimeCall.query(self.session).order_by(
+            RuntimeCall.spec_version.asc(), RuntimeCall.module_id.asc(), RuntimeCall.call_id.asc()
+        )
 
-        if event_id:
-            event = Event.query(self.session).get(event_id.split('-'))
-            resp.status = falcon.HTTP_200
-            resp.media = self.get_jsonapi_response(data=event.serialize())
-        else:
-            resp.status = falcon.HTTP_404
+
+class RuntimeCallDetailResource(JSONAPIDetailResource):
+
+    def get_item_url_name(self):
+        return 'runtime_call_id'
+
+    def get_item(self, item_id):
+        return RuntimeCall.query(self.session).get(item_id)
+
+
+class RuntimeEventListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return RuntimeEvent.query(self.session).order_by(
+            RuntimeEvent.spec_version.asc(), RuntimeEvent.module_id.asc(), RuntimeEvent.event_id.asc()
+        )
+
+
+class RuntimeEventDetailResource(BaseResource):
+
+    def get_item_url_name(self):
+        return 'runtime_event_id'
+
+    def get_item(self, item_id):
+        return RuntimeEvent.query(self.session).get(item_id)
 
