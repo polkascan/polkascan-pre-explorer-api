@@ -21,7 +21,8 @@
 import falcon
 from sqlalchemy import func
 
-from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime
+from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
+    RuntimeCallParam, RuntimeEventAttribute
 from app.models.data import Metadata
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.utils.ss58 import ss58_decode, ss58_encode
@@ -72,12 +73,35 @@ class ExtrinsicListResource(JSONAPIListResource):
         )
 
 
+class ExtrinsicDetailResource(JSONAPIDetailResource):
+
+    def get_item_url_name(self):
+        return 'extrinsic_id'
+
+    def get_item(self, item_id):
+        extrinsic = Extrinsic.query(self.session).get(item_id.split('-'))
+
+        if extrinsic and extrinsic.address:
+            extrinsic.address = ss58_encode(extrinsic.address)
+
+        return extrinsic
+
+
 class EventsListResource(JSONAPIListResource):
 
     def get_query(self):
         return Event.query(self.session).filter(Event.system == False).order_by(
             Event.block_id.desc(), Event.event_idx.asc()
         )
+
+
+class EventDetailResource(JSONAPIDetailResource):
+
+    def get_item_url_name(self):
+        return 'event_id'
+
+    def get_item(self, item_id):
+        return Event.query(self.session).get(item_id.split('-'))
 
 
 class PolkascanNetworkStatisticsResource(JSONAPIResource):
@@ -132,34 +156,11 @@ class BalanceTransferResource(JSONAPIListResource):
         }
 
 
-class ExtrinsicDetailResource(JSONAPIDetailResource):
-
-    def get_item_url_name(self):
-        return 'extrinsic_id'
-
-    def get_item(self, item_id):
-        extrinsic = Extrinsic.query(self.session).get(item_id.split('-'))
-
-        if extrinsic and extrinsic.address:
-            extrinsic.address = ss58_encode(extrinsic.address)
-
-        return extrinsic
-
-
-class EventDetailResource(JSONAPIDetailResource):
-
-    def get_item_url_name(self):
-        return 'event_id'
-
-    def get_item(self, item_id):
-        return Event.query(self.session).get(item_id.split('-'))
-
-
 class RuntimeListResource(JSONAPIListResource):
 
     def get_query(self):
         return Runtime.query(self.session).order_by(
-            Runtime.id.asc()
+            Runtime.id.desc()
         )
 
 
@@ -167,6 +168,15 @@ class RuntimeDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
         return Runtime.query(self.session).get(item_id)
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'modules' in include_list:
+            relationships['modules'] = RuntimeModule.query(self.session).filter_by(spec_version=item.spec_version).order_by(
+                'lookup', 'id')
+
+        return relationships
 
 
 class RuntimeCallListResource(JSONAPIListResource):
@@ -185,6 +195,15 @@ class RuntimeCallDetailResource(JSONAPIDetailResource):
     def get_item(self, item_id):
         return RuntimeCall.query(self.session).get(item_id)
 
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'params' in include_list:
+            relationships['params'] = RuntimeCallParam.query(self.session).filter_by(
+                runtime_call_id=item.id).order_by('id')
+
+        return relationships
+
 
 class RuntimeEventListResource(JSONAPIListResource):
 
@@ -194,7 +213,7 @@ class RuntimeEventListResource(JSONAPIListResource):
         )
 
 
-class RuntimeEventDetailResource(BaseResource):
+class RuntimeEventDetailResource(JSONAPIDetailResource):
 
     def get_item_url_name(self):
         return 'runtime_event_id'
@@ -202,3 +221,32 @@ class RuntimeEventDetailResource(BaseResource):
     def get_item(self, item_id):
         return RuntimeEvent.query(self.session).get(item_id)
 
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'attributes' in include_list:
+            relationships['attributes'] = RuntimeEventAttribute.query(self.session).filter_by(
+                runtime_event_id=item.id).order_by('id')
+
+        return relationships
+
+
+class RuntimeModuleDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        return RuntimeModule.query(self.session).get(item_id)
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'calls' in include_list:
+            relationships['calls'] = RuntimeCall.query(self.session).filter_by(
+                spec_version=item.spec_version, module_id=item.module_id).order_by(
+                'lookup', 'id')
+
+        if 'events' in include_list:
+            relationships['events'] = RuntimeEvent.query(self.session).filter_by(
+                spec_version=item.spec_version, module_id=item.module_id).order_by(
+                'lookup', 'id')
+
+        return relationships
