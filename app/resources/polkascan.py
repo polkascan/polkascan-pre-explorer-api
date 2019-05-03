@@ -72,6 +72,13 @@ class ExtrinsicListResource(JSONAPIListResource):
             Extrinsic.block_id.desc(), Extrinsic.extrinsic_idx.asc()
         )
 
+    def apply_filters(self, query, params):
+        if params.get('filter[signed]'):
+
+            return query.filter_by(signed=params.get('filter[signed]'))
+
+        return query
+
 
 class ExtrinsicDetailResource(JSONAPIDetailResource):
 
