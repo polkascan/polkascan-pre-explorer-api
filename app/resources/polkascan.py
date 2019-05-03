@@ -75,7 +75,15 @@ class ExtrinsicListResource(JSONAPIListResource):
     def apply_filters(self, query, params):
         if params.get('filter[signed]'):
 
-            return query.filter_by(signed=params.get('filter[signed]'))
+            query = query.filter_by(signed=params.get('filter[signed]'))
+
+        if params.get('filter[module_id]'):
+
+            query = query.filter_by(module_id=params.get('filter[module_id]'))
+
+        if params.get('filter[call_id]'):
+
+            query = query.filter_by(call_id=params.get('filter[call_id]'))
 
         return query
 
@@ -209,6 +217,10 @@ class RuntimeCallDetailResource(JSONAPIDetailResource):
             relationships['params'] = RuntimeCallParam.query(self.session).filter_by(
                 runtime_call_id=item.id).order_by('id')
 
+        if 'recent_extrinsics' in include_list:
+            relationships['recent_extrinsics'] = Extrinsic.query(self.session).filter_by(
+                call_id=item.call_id, module_id=item.module_id).order_by(Extrinsic.block_id.desc())[:10]
+
         return relationships
 
 
@@ -234,6 +246,11 @@ class RuntimeEventDetailResource(JSONAPIDetailResource):
         if 'attributes' in include_list:
             relationships['attributes'] = RuntimeEventAttribute.query(self.session).filter_by(
                 runtime_event_id=item.id).order_by('id')
+
+        if 'recent_events' in include_list:
+            relationships['recent_events'] = Event.query(self.session).filter_by(
+                event_id=item.event_id, module_id=item.module_id).order_by(Event.block_id.desc())[:10]
+
 
         return relationships
 
