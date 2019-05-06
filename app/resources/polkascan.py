@@ -22,7 +22,7 @@ import falcon
 from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
-    RuntimeCallParam, RuntimeEventAttribute
+    RuntimeCallParam, RuntimeEventAttribute, RuntimeType
 from app.models.data import Metadata
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.utils.ss58 import ss58_decode, ss58_encode
@@ -188,8 +188,14 @@ class RuntimeDetailResource(JSONAPIDetailResource):
         relationships = {}
 
         if 'modules' in include_list:
-            relationships['modules'] = RuntimeModule.query(self.session).filter_by(spec_version=item.spec_version).order_by(
-                'lookup', 'id')
+            relationships['modules'] = RuntimeModule.query(self.session).filter_by(
+                spec_version=item.spec_version
+            ).order_by('lookup', 'id')
+
+        if 'types' in include_list:
+            relationships['types'] = RuntimeType.query(self.session).filter_by(
+                spec_version=item.spec_version
+            ).order_by('type_string')
 
         return relationships
 

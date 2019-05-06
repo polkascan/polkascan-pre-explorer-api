@@ -17,8 +17,17 @@
 #  along with Polkascan. If not, see <http://www.gnu.org/licenses/>.
 #
 #  settings.py
+import os
 
-DB_CONNECTION = "mysql+mysqlconnector://root:root@mysql:3306/polkascan"
+DB_NAME = os.environ.get("DB_NAME", "polkascan")
+DB_HOST = os.environ.get("DB_HOST", "mysql")
+DB_PORT = os.environ.get("DB_PORT", 3306)
+DB_USERNAME = os.environ.get("DB_USERNAME", "root")
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "root")
+
+DB_CONNECTION = os.environ.get("DB_CONNECTION", "mysql+mysqlconnector://{}:{}@{}:{}/{}".format(
+    DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME
+))
 
 DEBUG = False
 
