@@ -214,7 +214,12 @@ class RuntimeCallDetailResource(JSONAPIDetailResource):
         return 'runtime_call_id'
 
     def get_item(self, item_id):
-        return RuntimeCall.query(self.session).get(item_id)
+        spec_version, module_id, call_id = item_id.split('-')
+        return RuntimeCall.query(self.session).filter_by(
+            spec_version=spec_version,
+            module_id=module_id,
+            call_id=call_id
+        ).first()
 
     def get_relationships(self, include_list, item):
         relationships = {}
@@ -244,7 +249,12 @@ class RuntimeEventDetailResource(JSONAPIDetailResource):
         return 'runtime_event_id'
 
     def get_item(self, item_id):
-        return RuntimeEvent.query(self.session).get(item_id)
+        spec_version, module_id, event_id = item_id.split('-')
+        return RuntimeEvent.query(self.session).filter_by(
+            spec_version=spec_version,
+            module_id=module_id,
+            event_id=event_id
+        ).first()
 
     def get_relationships(self, include_list, item):
         relationships = {}
@@ -257,14 +267,14 @@ class RuntimeEventDetailResource(JSONAPIDetailResource):
             relationships['recent_events'] = Event.query(self.session).filter_by(
                 event_id=item.event_id, module_id=item.module_id).order_by(Event.block_id.desc())[:10]
 
-
         return relationships
 
 
 class RuntimeModuleDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
-        return RuntimeModule.query(self.session).get(item_id)
+        spec_version, module_id = item_id.split('-')
+        return RuntimeModule.query(self.session).filter_by(spec_version=spec_version, module_id=module_id).first()
 
     def get_relationships(self, include_list, item):
         relationships = {}

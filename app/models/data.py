@@ -157,6 +157,9 @@ class Runtime(BaseModel):
     impl_name = sa.Column(sa.String(255))
     spec_version = sa.Column(sa.Integer(), nullable=False)
 
+    def serialize_id(self):
+        return self.spec_version
+
 
 class RuntimeModule(BaseModel):
     __tablename__ = 'runtime_module'
@@ -175,6 +178,9 @@ class RuntimeModule(BaseModel):
     count_storage_functions = sa.Column(sa.Integer(), nullable=False)
     count_events = sa.Column(sa.Integer(), nullable=False)
 
+    def serialize_id(self):
+        return '{}-{}'.format(self.spec_version, self.module_id)
+
 
 class RuntimeCall(BaseModel):
     __tablename__ = 'runtime_call'
@@ -191,6 +197,9 @@ class RuntimeCall(BaseModel):
     lookup = sa.Column(sa.String(4), index=True)
     documentation = sa.Column(sa.Text())
     count_params = sa.Column(sa.Integer(), nullable=False)
+
+    def serialize_id(self):
+        return '{}-{}-{}'.format(self.spec_version, self.module_id, self.call_id)
 
 
 class RuntimeCallParam(BaseModel):
@@ -218,6 +227,9 @@ class RuntimeEvent(BaseModel):
     lookup = sa.Column(sa.String(4), index=True)
     documentation = sa.Column(sa.Text())
     count_attributes = sa.Column(sa.Integer(), nullable=False)
+
+    def serialize_id(self):
+        return '{}-{}-{}'.format(self.spec_version, self.module_id, self.event_id)
 
 
 class RuntimeEventAttribute(BaseModel):
