@@ -94,7 +94,11 @@ class ExtrinsicDetailResource(JSONAPIDetailResource):
         return 'extrinsic_id'
 
     def get_item(self, item_id):
-        extrinsic = Extrinsic.query(self.session).get(item_id.split('-'))
+
+        if item_id[0:2] == '0x':
+            extrinsic = Extrinsic.query(self.session).filter_by(extrinsic_hash=item_id[2:]).first()
+        else:
+            extrinsic = Extrinsic.query(self.session).get(item_id.split('-'))
 
         if extrinsic and extrinsic.address:
             extrinsic.address = ss58_encode(extrinsic.address)
