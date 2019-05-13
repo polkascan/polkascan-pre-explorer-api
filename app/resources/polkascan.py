@@ -85,6 +85,15 @@ class ExtrinsicListResource(JSONAPIListResource):
 
             query = query.filter_by(call_id=params.get('filter[call_id]'))
 
+        if params.get('filter[address]'):
+
+            if len(params.get('filter[address]')) == 64:
+                account_id = params.get('filter[address]')
+            else:
+                account_id = ss58_decode(params.get('filter[address]'))
+
+            query = query.filter_by(address=account_id)
+
         return query
 
 
