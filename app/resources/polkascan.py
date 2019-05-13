@@ -168,6 +168,7 @@ class BalanceTransferResource(JSONAPIListResource):
                 'id': '{}-{}'.format(item.block_id, item.extrinsic_idx),
                 'attributes': {
                     'block_id': item.block_id,
+                    'extrinsic_hash': item.extrinsic_hash,
                     'sender': ss58_encode(item.address),
                     'destination': ss58_encode(item.params[0]['value']),
                     'value': item.params[1]['value']
