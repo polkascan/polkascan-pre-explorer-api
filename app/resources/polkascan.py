@@ -135,7 +135,7 @@ class EventDetailResource(JSONAPIDetailResource):
 
 class NetworkStatisticsResource(JSONAPIResource):
 
-    cache_expiration_time = 6
+    cache_expiration_time = 60
 
     def on_get(self, req, resp, network_id=None):
         resp.status = falcon.HTTP_200
@@ -205,6 +205,8 @@ class BalanceTransferResource(JSONAPIListResource):
 
 class RuntimeListResource(JSONAPIListResource):
 
+    cache_expiration_time = 60
+
     def get_query(self):
         return Runtime.query(self.session).order_by(
             Runtime.id.desc()
@@ -233,6 +235,8 @@ class RuntimeDetailResource(JSONAPIDetailResource):
 
 
 class RuntimeCallListResource(JSONAPIListResource):
+
+    cache_expiration_time = 60
 
     def get_query(self):
         return RuntimeCall.query(self.session).order_by(
@@ -268,6 +272,8 @@ class RuntimeCallDetailResource(JSONAPIDetailResource):
 
 
 class RuntimeEventListResource(JSONAPIListResource):
+
+    cache_expiration_time = 60
 
     def get_query(self):
         return RuntimeEvent.query(self.session).order_by(
