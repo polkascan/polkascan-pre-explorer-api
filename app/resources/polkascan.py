@@ -142,7 +142,7 @@ class NetworkStatisticsResource(JSONAPIResource):
 
         # TODO make caching more generic for custom resources
 
-        cache_key = '{}-{}'.format(req.method, req.path)
+        cache_key = '{}-{}'.format(req.method, req.url)
 
         response = self.cache_region.get(cache_key, self.cache_expiration_time)
 
