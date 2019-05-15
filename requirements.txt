@@ -1,6 +1,7 @@
 base58
 alembic==1.0.7
 dictalchemy==0.1.2.7
+dogpile.cache==0.7.1
 falcon==1.4.1
 greenlet==0.4.15
 gunicorn==19.9.0

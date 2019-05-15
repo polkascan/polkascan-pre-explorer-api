@@ -17,16 +17,18 @@
 #  along with Polkascan. If not, see <http://www.gnu.org/licenses/>.
 #
 #  main.py
-
-from app.settings import DB_CONNECTION, DEBUG
+from app.settings import DB_CONNECTION, DEBUG, DOGPILE_CACHE_SETTINGS
 
 import falcon
+
+from dogpile.cache import make_region
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.middleware.context import ContextMiddleware
 from app.middleware.sessionmanager import SQLAlchemySessionManager
+from app.middleware.cache import CacheMiddleware
 
 from app.resources import polkascan
 
@@ -34,8 +36,24 @@ from app.resources import polkascan
 engine = create_engine(DB_CONNECTION, echo=DEBUG, isolation_level="READ_UNCOMMITTED")
 session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
+# Define cache region
+cache_region = make_region().configure(
+            'dogpile.cache.redis',
+            arguments={
+                'host': DOGPILE_CACHE_SETTINGS['host'],
+                'port': DOGPILE_CACHE_SETTINGS['port'],
+                'db': DOGPILE_CACHE_SETTINGS['db'],
+                'redis_expiration_time': 60*60*2,   # 2 hours
+                'distributed_lock': True
+            }
+)
+
 # Define application
-app = falcon.API(middleware=[ContextMiddleware(), SQLAlchemySessionManager(session_factory)])
+app = falcon.API(middleware=[
+    ContextMiddleware(),
+    SQLAlchemySessionManager(session_factory),
+    CacheMiddleware(cache_region)
+])
 
 # Application routes
 app.add_route('/system/block', polkascan.BlockListResource())
@@ -51,5 +69,5 @@ app.add_route('/system/runtime-call/{runtime_call_id}', polkascan.RuntimeCallDet
 app.add_route('/system/runtime-event', polkascan.RuntimeEventListResource())
 app.add_route('/system/runtime-event/{runtime_event_id}', polkascan.RuntimeEventDetailResource())
 app.add_route('/system/runtime-module/{item_id}', polkascan.RuntimeModuleDetailResource())
-app.add_route('/system/networkstats/{network_id}', polkascan.PolkascanNetworkStatisticsResource())
+app.add_route('/system/networkstats/{network_id}', polkascan.NetworkStatisticsResource())
 app.add_route('/balance/transfers', polkascan.BalanceTransferResource())

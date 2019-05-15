@@ -20,14 +20,17 @@
 from abc import ABC, abstractmethod
 
 import falcon
+from dogpile.cache import CacheRegion
+from dogpile.cache.api import NO_VALUE
 from sqlalchemy.orm import Session
 
-from app.settings import MAX_RESOURCE_PAGE_SIZE
+from app.settings import MAX_RESOURCE_PAGE_SIZE, DOGPILE_CACHE_SETTINGS
 
 
 class BaseResource(object):
 
     session: Session
+    cache_region: CacheRegion
 
 
 class JSONAPIResource(BaseResource):
@@ -83,6 +86,8 @@ class JSONAPIResource(BaseResource):
 
 class JSONAPIListResource(JSONAPIResource, ABC):
 
+    cache_expiration_time = DOGPILE_CACHE_SETTINGS['default_list_cache_expiration_time']
+
     @abstractmethod
     def get_query(self):
         raise NotImplementedError()
@@ -94,18 +99,39 @@ class JSONAPIListResource(JSONAPIResource, ABC):
 
     def on_get(self, req, resp):
 
-        items = self.get_query()
-        items = self.apply_filters(items, req.params)
-        items = self.apply_paging(items, req.params)
+        cache_key = '{}-{}'.format(req.method, req.url)
 
-        resp.status = falcon.HTTP_200
-        resp.media = self.get_jsonapi_response(
-            data=[self.serialize_item(item) for item in items],
-            meta=self.get_meta()
-        )
+        cache_response = None
+
+        if self.cache_expiration_time:
+            cache_response = self.cache_region.get(cache_key, self.cache_expiration_time)
+            resp.set_header('X-Cache', 'HIT')
+
+        if not self.cache_expiration_time or cache_response is NO_VALUE:
+
+            items = self.get_query()
+            items = self.apply_filters(items, req.params)
+            items = self.apply_paging(items, req.params)
+
+            cache_response = {
+                'status': falcon.HTTP_200,
+                'media': self.get_jsonapi_response(
+                    data=[self.serialize_item(item) for item in items],
+                    meta=self.get_meta()
+                )
+            }
+
+            if self.cache_expiration_time:
+                self.cache_region.set(cache_key, cache_response)
+                resp.set_header('X-Cache', 'MISS')
+
+        resp.status = cache_response['status']
+        resp.media = cache_response['media']
 
 
 class JSONAPIDetailResource(JSONAPIResource, ABC):
+
+    cache_expiration_time = DOGPILE_CACHE_SETTINGS['default_detail_cache_expiration_time']
 
     def get_item_url_name(self):
         return 'item_id'
@@ -118,16 +144,42 @@ class JSONAPIDetailResource(JSONAPIResource, ABC):
         return {}
 
     def on_get(self, req, resp, **kwargs):
-        item = self.get_item(kwargs.get(self.get_item_url_name()))
 
-        if not item:
-            resp.status = falcon.HTTP_404
+        cache_key = '{}-{}'.format(req.method, req.url)
 
-        else:
+        cache_response = None
 
-            resp.status = falcon.HTTP_200
-            resp.media = self.get_jsonapi_response(
-                data=item.serialize(),
-                relationships=self.get_relationships(req.params.get('include') or [], item),
-                meta=self.get_meta()
-            )
+        if self.cache_expiration_time:
+
+            cache_response = self.cache_region.get(cache_key, self.cache_expiration_time)
+
+            if cache_response is not NO_VALUE:
+                resp.set_header('X-Cache', 'HIT')
+
+        if not self.cache_expiration_time or cache_response is NO_VALUE:
+
+            item = self.get_item(kwargs.get(self.get_item_url_name()))
+
+            cache_response = {}
+
+            if not item:
+                cache_response = {
+                    'status': falcon.HTTP_404,
+                    'media': None
+                }
+
+            else:
+
+                cache_response['status'] = falcon.HTTP_200
+                cache_response['media'] = self.get_jsonapi_response(
+                    data=item.serialize(),
+                    relationships=self.get_relationships(req.params.get('include') or [], item),
+                    meta=self.get_meta()
+                )
+
+                if self.cache_expiration_time:
+                    self.cache_region.set(cache_key, cache_response)
+                    resp.set_header('X-Cache', 'MISS')
+
+        resp.status = cache_response['status']
+        resp.media = cache_response['media']

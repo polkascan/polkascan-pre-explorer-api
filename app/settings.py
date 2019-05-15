@@ -29,6 +29,16 @@ DB_CONNECTION = os.environ.get("DB_CONNECTION", "mysql+mysqlconnector://{}:{}@{}
     DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME
 ))
 
+DOGPILE_CACHE_SETTINGS = {
+
+    'default_list_cache_expiration_time': 6,
+    'default_detail_cache_expiration_time': 3600,
+    'host': os.environ.get("DOGPILE_CACHE_HOST", "redis"),
+    'port': os.environ.get("DOGPILE_CACHE_HOST", 6379),
+    'db': os.environ.get("DOGPILE_CACHE_DB", 10)
+}
+
+
 DEBUG = False
 
 MAX_RESOURCE_PAGE_SIZE = 100

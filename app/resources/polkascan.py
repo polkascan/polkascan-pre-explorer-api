@@ -19,6 +19,7 @@
 #  polkascan.py
 
 import falcon
+from dogpile.cache.api import NO_VALUE
 from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
@@ -132,24 +133,41 @@ class EventDetailResource(JSONAPIDetailResource):
         return Event.query(self.session).get(item_id.split('-'))
 
 
-class PolkascanNetworkStatisticsResource(JSONAPIResource):
+class NetworkStatisticsResource(JSONAPIResource):
+
+    cache_expiration_time = 6
 
     def on_get(self, req, resp, network_id=None):
         resp.status = falcon.HTTP_200
 
-        resp.media = self.get_jsonapi_response(
-            data={
-                'type': 'networkstats',
-                'id': network_id,
-                'attributes': {
-                    'best_block': self.session.query(func.max(Block.id)).one()[0],
-                    'total_signed_extrinsics': Extrinsic.query(self.session).filter_by(signed=1).count(),
-                    'total_events': Event.query(self.session).count(),
-                    'total_blocks': Block.query(self.session).count(),
-                    'total_runtimes': Metadata.query(self.session).count()
-                }
-            },
-        )
+        # TODO make caching more generic for custom resources
+
+        cache_key = '{}-{}'.format(req.method, req.path)
+
+        response = self.cache_region.get(cache_key, self.cache_expiration_time)
+
+        if response is NO_VALUE:
+
+            response = self.get_jsonapi_response(
+                data={
+                    'type': 'networkstats',
+                    'id': network_id,
+                    'attributes': {
+                        'best_block': self.session.query(func.max(Block.id)).one()[0],
+                        'total_signed_extrinsics': Extrinsic.query(self.session).filter_by(signed=1).count(),
+                        'total_events': Event.query(self.session).count(),
+                        'total_blocks': Block.query(self.session).count(),
+                        'total_runtimes': Metadata.query(self.session).count()
+                    }
+                },
+            )
+
+            self.cache_region.set(cache_key, response)
+            resp.set_header('X-Cache', 'MISS')
+        else:
+            resp.set_header('X-Cache', 'HIT')
+
+        resp.media = response
 
 
 class BalanceTransferResource(JSONAPIListResource):
