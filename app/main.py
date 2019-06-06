@@ -69,5 +69,6 @@ app.add_route('/system/runtime-call/{runtime_call_id}', polkascan.RuntimeCallDet
 app.add_route('/system/runtime-event', polkascan.RuntimeEventListResource())
 app.add_route('/system/runtime-event/{runtime_event_id}', polkascan.RuntimeEventDetailResource())
 app.add_route('/system/runtime-module/{item_id}', polkascan.RuntimeModuleDetailResource())
+app.add_route('/system/runtime-storage/{item_id}', polkascan.RuntimeStorageDetailResource())
 app.add_route('/system/networkstats/{network_id}', polkascan.NetworkStatisticsResource())
 app.add_route('/balance/transfers', polkascan.BalanceTransferResource())

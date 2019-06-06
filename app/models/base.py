@@ -17,7 +17,9 @@
 #  along with Polkascan. If not, see <http://www.gnu.org/licenses/>.
 # 
 #  base.py
+from datetime import datetime
 
+import pytz
 from dictalchemy import DictableModel
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -38,11 +40,18 @@ class BaseModelObj(DictableModel):
         return self.id
 
     def serialize(self, exclude=None):
-        return {
+        obj_dict = {
             'type': self.serialize_type,
             'id': self.serialize_id(),
             'attributes': self.asdict(exclude=exclude or self.serialize_exclude)
         }
+
+        # Reformat certain data type
+        for key, value in obj_dict['attributes'].items():
+            if type(value) is datetime:
+                obj_dict['attributes'][key] = value.replace(tzinfo=pytz.UTC).isoformat()
+
+        return obj_dict
 
     @classmethod
     def query(cls, session):

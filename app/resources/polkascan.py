@@ -23,8 +23,7 @@ from dogpile.cache.api import NO_VALUE
 from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
-    RuntimeCallParam, RuntimeEventAttribute, RuntimeType
-from app.models.data import Metadata
+    RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.utils.ss58 import ss58_decode, ss58_encode
 
@@ -157,7 +156,7 @@ class NetworkStatisticsResource(JSONAPIResource):
                         'total_signed_extrinsics': Extrinsic.query(self.session).filter_by(signed=1).count(),
                         'total_events': Event.query(self.session).count(),
                         'total_blocks': Block.query(self.session).count(),
-                        'total_runtimes': Metadata.query(self.session).count()
+                        'total_runtimes': Runtime.query(self.session).count()
                     }
                 },
             )
@@ -327,4 +326,20 @@ class RuntimeModuleDetailResource(JSONAPIDetailResource):
                 spec_version=item.spec_version, module_id=item.module_id).order_by(
                 'lookup', 'id')
 
+        if 'storage' in include_list:
+            relationships['storage'] = RuntimeStorage.query(self.session).filter_by(
+                spec_version=item.spec_version, module_id=item.module_id).order_by(
+                'lookup', 'id')
+
         return relationships
+
+
+class RuntimeStorageDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        spec_version, module_id, name = item_id.split('-')
+        return RuntimeStorage.query(self.session).filter_by(
+            spec_version=spec_version,
+            module_id=module_id,
+            name=name
+        ).first()
