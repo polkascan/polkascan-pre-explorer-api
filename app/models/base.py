@@ -39,12 +39,23 @@ class BaseModelObj(DictableModel):
     def serialize_id(self):
         return self.id
 
+    def serialize_formatting_hook(self, obj_dict):
+        """ Hook to be able to process data before being serialized """
+        return obj_dict
+
     def serialize(self, exclude=None):
+        """ Serializes current model to a dict representation
+        :param exclude: list of property names to exclude in serialization
+        :returns: dict respresentation of current model
+        """
+
         obj_dict = {
             'type': self.serialize_type,
             'id': self.serialize_id(),
             'attributes': self.asdict(exclude=exclude or self.serialize_exclude)
         }
+
+        obj_dict = self.serialize_formatting_hook(obj_dict)
 
         # Reformat certain data type
         for key, value in obj_dict['attributes'].items():

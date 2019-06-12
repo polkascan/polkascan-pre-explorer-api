@@ -23,6 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import relationship
 
 from app.models.base import BaseModel
+from app.utils.ss58 import ss58_encode
 
 
 class Block(BaseModel):
@@ -126,6 +127,15 @@ class Event(BaseModel):
     def serialize_id(self):
         return '{}-{}'.format(self.block_id, self.event_idx)
 
+    def serialize_formatting_hook(self, obj_dict):
+
+        for item in obj_dict['attributes']['attributes']:
+            if item['type'] == 'AccountId' and item['value']:
+                # SS58 format AccountId public keys
+                item['value'] = ss58_encode(item['value'].replace('0x', ''))
+
+        return obj_dict
+
 
 class Extrinsic(BaseModel):
     __tablename__ = 'data_extrinsic'
@@ -168,9 +178,23 @@ class Extrinsic(BaseModel):
     def serialize_id(self):
         return '{}-{}'.format(self.block_id, self.extrinsic_idx)
 
+    def serialize_formatting_hook(self, obj_dict):
+
+        if obj_dict['attributes'].get('address'):
+            obj_dict['attributes']['address'] = ss58_encode(obj_dict['attributes']['address'])
+
+        for item in obj_dict['attributes']['params']:
+            if item['type'] == 'Address' and item['value']:
+                # SS58 format Addresses public keys
+                item['value'] = ss58_encode(item['value'])
+
+        return obj_dict
+
 
 class Runtime(BaseModel):
     __tablename__ = 'runtime'
+
+    serialize_exclude = ['json_metadata', 'json_metadata_decoded']
 
     id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
     impl_name = sa.Column(sa.String(255))
