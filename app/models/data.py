@@ -181,7 +181,6 @@ class Extrinsic(BaseModel):
     def serialize_formatting_hook(self, obj_dict):
 
         if obj_dict['attributes'].get('address'):
-            print('Addres:{}|'.format(obj_dict['attributes'].get('address')))
             obj_dict['attributes']['address'] = ss58_encode(obj_dict['attributes']['address'].replace('0x', ''))
 
         for item in obj_dict['attributes']['params']:
