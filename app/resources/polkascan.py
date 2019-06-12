@@ -109,9 +109,6 @@ class ExtrinsicDetailResource(JSONAPIDetailResource):
         else:
             extrinsic = Extrinsic.query(self.session).get(item_id.split('-'))
 
-        if extrinsic and extrinsic.address:
-            extrinsic.address = ss58_encode(extrinsic.address)
-
         return extrinsic
 
 
