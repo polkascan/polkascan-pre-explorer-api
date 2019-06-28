@@ -23,7 +23,7 @@ from dogpile.cache.api import NO_VALUE
 from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
-    RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage
+    RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.utils.ss58 import ss58_decode, ss58_encode
 
@@ -197,6 +197,69 @@ class BalanceTransferResource(JSONAPIListResource):
                     'value': item.params[1]['value']
                 }
         }
+
+
+class AccountResource(JSONAPIListResource):
+
+    def get_query(self):
+        return Account.query(self.session).order_by(
+            'address'
+        )
+
+
+class AccountDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        return Account.query(self.session).filter_by(address=item_id).first()
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'recent_extrinsics' in include_list:
+            relationships['recent_extrinsics'] = Extrinsic.query(self.session).filter_by(
+                address=item.id).order_by(Extrinsic.block_id.desc())[:10]
+
+        return relationships
+
+
+class SessionListResource(JSONAPIListResource):
+
+    cache_expiration_time = 60
+
+    def get_query(self):
+        return Session.query(self.session).order_by(
+            Session.id.desc()
+        )
+
+
+class SessionDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        return Session.query(self.session).get(item_id)
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'blocks' in include_list:
+            relationships['blocks'] = Block.query(self.session).filter_by(
+                session_id=item.id
+            ).order_by(Block.id.desc())
+
+        return relationships
+
+
+class DemocracyProposalListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return DemocracyProposal.query(self.session).order_by(
+            DemocracyProposal.id.desc()
+        )
+
+
+class DemocracyProposalDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        return DemocracyProposal.query(self.session).get(item_id)
 
 
 class RuntimeListResource(JSONAPIListResource):

@@ -17,6 +17,7 @@
 #  along with Polkascan. If not, see <http://www.gnu.org/licenses/>.
 # 
 #  base.py
+import decimal
 from datetime import datetime
 
 import pytz
@@ -61,6 +62,9 @@ class BaseModelObj(DictableModel):
         for key, value in obj_dict['attributes'].items():
             if type(value) is datetime:
                 obj_dict['attributes'][key] = value.replace(tzinfo=pytz.UTC).isoformat()
+
+            if isinstance(value, decimal.Decimal):
+                obj_dict['attributes'][key] = float(value)
 
         return obj_dict
 

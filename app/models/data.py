@@ -20,56 +20,156 @@
 
 import sqlalchemy as sa
 from sqlalchemy import text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, column_property
+from sqlalchemy.dialects.mysql import LONGTEXT
 
 from app.models.base import BaseModel
 from app.utils.ss58 import ss58_encode
 
 
+data_block = sa.Table('data_block', BaseModel.metadata,
+    sa.Column('id', sa.Integer(), primary_key=True, autoincrement=False),
+    sa.Column('parent_id', sa.Integer(), nullable=False),
+    sa.Column('hash', sa.String(66), unique=True, index=True, nullable=False),
+    sa.Column('parent_hash', sa.String(66), index=True, nullable=False),
+    sa.Column('state_root', sa.String(66), nullable=False),
+    sa.Column('extrinsics_root', sa.String(66), nullable=False),
+    sa.Column('count_extrinsics', sa.Integer(), nullable=False),
+    sa.Column('count_extrinsics_unsigned', sa.Integer(), nullable=False),
+    sa.Column('count_extrinsics_signed', sa.Integer(), nullable=False),
+    sa.Column('count_extrinsics_error', sa.Integer(), nullable=False),
+    sa.Column('count_extrinsics_success', sa.Integer(), nullable=False),
+    sa.Column('count_extrinsics_signedby_address', sa.Integer(), nullable=False),
+    sa.Column('count_extrinsics_signedby_index', sa.Integer(), nullable=False),
+    sa.Column('count_events', sa.Integer(), nullable=False),
+    sa.Column('count_events_system', sa.Integer(), nullable=False),
+    sa.Column('count_events_module', sa.Integer(), nullable=False),
+    sa.Column('count_events_extrinsic', sa.Integer(), nullable=False),
+    sa.Column('count_events_finalization', sa.Integer(), nullable=False),
+    sa.Column('count_accounts', sa.Integer(), nullable=False),
+    sa.Column('count_accounts_new', sa.Integer(), nullable=False),
+    sa.Column('count_accounts_reaped', sa.Integer(), nullable=False),
+    sa.Column('count_sessions_new', sa.Integer(), nullable=False),
+    sa.Column('count_contracts_new', sa.Integer(), nullable=False),
+    sa.Column('count_log', sa.Integer(), nullable=False),
+    sa.Column('range10000', sa.Integer(), nullable=False),
+    sa.Column('range100000', sa.Integer(), nullable=False),
+    sa.Column('range1000000', sa.Integer(), nullable=False),
+    sa.Column('datetime', sa.DateTime(timezone=True)),
+    sa.Column('year', sa.Integer(), nullable=True),
+    sa.Column('month', sa.Integer(), nullable=True),
+    sa.Column('week', sa.Integer(), nullable=True),
+    sa.Column('day', sa.Integer(), nullable=True),
+    sa.Column('hour', sa.Integer(), nullable=True),
+    sa.Column('full_month', sa.Integer(), nullable=True),
+    sa.Column('full_week', sa.Integer(), nullable=True),
+    sa.Column('full_day', sa.Integer(), nullable=True),
+    sa.Column('full_hour', sa.Integer(), nullable=True),
+    sa.Column('logs', sa.JSON(), default=None, server_default=None),
+    sa.Column('spec_version_id', sa.String(64), nullable=False),
+    sa.Column('debug_info', sa.JSON(), default=None, server_default=None)
+)
+
+data_block_total = sa.Table('data_block_total', BaseModel.metadata,
+    sa.Column('id', sa.ForeignKey('data_block.id'), primary_key=True, autoincrement=False),
+    sa.Column('parent_datetime', sa.DateTime()),
+    sa.Column('blocktime', sa.Integer(), nullable=False),
+    sa.Column('total_extrinsics', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_extrinsics_success', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_extrinsics_error', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_extrinsics_signed', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_extrinsics_unsigned', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_extrinsics_signedby_address', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_extrinsics_signedby_index', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_events', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_events_system', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_events_module', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_events_extrinsic', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_events_finalization', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_logs', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_blocktime', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_accounts', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_accounts_new', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_accounts_reaped', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_sessions_new', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('total_contracts_new', sa.Numeric(precision=65, scale=0), nullable=False),
+    sa.Column('session_id', sa.Integer())
+)
+
+
 class Block(BaseModel):
-    __tablename__ = 'data_block'
+    __table__ = sa.outerjoin(data_block, data_block_total)
 
     serialize_exclude = ['debug_info']
 
     serialize_type = 'block'
 
-    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
-    parent_id = sa.Column(sa.Integer(), nullable=False)
-    hash = sa.Column(sa.String(66), unique=True, index=True, nullable=False)
-    parent_hash = sa.Column(sa.String(66), index=True, nullable=False)
-    state_root = sa.Column(sa.String(66), nullable=False)
-    extrinsics_root = sa.Column(sa.String(66), nullable=False)
-    count_extrinsics = sa.Column(sa.Integer(), nullable=False)
-    count_extrinsics_unsigned = sa.Column(sa.Integer(), nullable=False)
-    count_extrinsics_signed = sa.Column(sa.Integer(), nullable=False)
-    count_extrinsics_error = sa.Column(sa.Integer(), nullable=False)
-    count_extrinsics_success = sa.Column(sa.Integer(), nullable=False)
-    count_extrinsics_signedby_address = sa.Column(sa.Integer(), nullable=False)
-    count_extrinsics_signedby_index = sa.Column(sa.Integer(), nullable=False)
-    count_events = sa.Column(sa.Integer(), nullable=False)
-    count_events_system = sa.Column(sa.Integer(), nullable=False)
-    count_events_module = sa.Column(sa.Integer(), nullable=False)
-    count_events_extrinsic = sa.Column(sa.Integer(), nullable=False)
-    count_events_finalization = sa.Column(sa.Integer(), nullable=False)
-    count_accounts_new = sa.Column(sa.Integer(), nullable=False)
-    range10000 = sa.Column(sa.Integer(), nullable=False)
-    range100000 = sa.Column(sa.Integer(), nullable=False)
-    range1000000 = sa.Column(sa.Integer(), nullable=False)
-    datetime = sa.Column(sa.DateTime(timezone=True))
-    parent_datetime = sa.Column(sa.DateTime(timezone=True))
-    blocktime = sa.Column(sa.Integer(), nullable=False)
-    year = sa.Column(sa.Integer(), nullable=True)
-    month = sa.Column(sa.Integer(), nullable=True)
-    week = sa.Column(sa.Integer(), nullable=True)
-    day = sa.Column(sa.Integer(), nullable=True)
-    hour = sa.Column(sa.Integer(), nullable=True)
-    full_month = sa.Column(sa.Integer(), nullable=True)
-    full_week = sa.Column(sa.Integer(), nullable=True)
-    full_day = sa.Column(sa.Integer(), nullable=True)
-    full_hour = sa.Column(sa.Integer(), nullable=True)
-    logs = sa.Column(sa.JSON(), default=None, server_default=None)
-    spec_version_id = sa.Column(sa.String(64), nullable=False)
-    debug_info = sa.Column(sa.JSON(), default=None, server_default=None)
+    id = column_property(
+        data_block.c.id,
+        data_block_total.c.id
+    )
+    parent_id = data_block.c.parent_id
+    hash = data_block.c.hash
+    parent_hash = data_block.c.parent_hash
+    state_root = data_block.c.state_root
+    extrinsics_root = data_block.c.extrinsics_root
+    count_extrinsics = data_block.c.count_extrinsics
+    count_extrinsics_unsigned = data_block.c.count_extrinsics_unsigned
+    count_extrinsics_signed = data_block.c.count_extrinsics_signed
+    count_extrinsics_error = data_block.c.count_extrinsics_error
+    count_extrinsics_success = data_block.c.count_extrinsics_success
+    count_extrinsics_signedby_address = data_block.c.count_extrinsics_signedby_address
+    count_extrinsics_signedby_index = data_block.c.count_extrinsics_signedby_index
+    count_events = data_block.c.count_events
+    count_events_system = data_block.c.count_events_system
+    count_events_module = data_block.c.count_events_module
+    count_events_extrinsic = data_block.c.count_events_extrinsic
+    count_events_finalization = data_block.c.count_events_finalization
+    count_accounts = data_block.c.count_accounts
+    count_accounts_new = data_block.c.count_accounts_new
+    count_accounts_reaped = data_block.c.count_accounts_reaped
+    count_sessions_new = data_block.c.count_sessions_new
+    count_contracts_new = data_block.c.count_contracts_new
+    count_log = data_block.c.count_log
+    range10000 = data_block.c.range10000
+    range100000 = data_block.c.range100000
+    range1000000 = data_block.c.range1000000
+    datetime = data_block.c.datetime
+    year = data_block.c.year
+    month = data_block.c.month
+    week = data_block.c.week
+    day = data_block.c.day
+    hour = data_block.c.hour
+    full_month = data_block.c.full_month
+    full_week = data_block.c.full_week
+    full_day = data_block.c.full_day
+    full_hour = data_block.c.full_hour
+    logs = data_block.c.logs
+    spec_version_id = data_block.c.spec_version_id
+    debug_info = data_block.c.debug_info
+
+    parent_datetime = data_block_total.c.parent_datetime
+    blocktime = data_block_total.c.blocktime
+    total_extrinsics = data_block_total.c.total_extrinsics
+    total_extrinsics_success = data_block_total.c.total_extrinsics_success
+    total_extrinsics_error = data_block_total.c.total_extrinsics_error
+    total_extrinsics_signed = data_block_total.c.total_extrinsics_signed
+    total_extrinsics_unsigned = data_block_total.c.total_extrinsics_unsigned
+    total_extrinsics_signedby_address = data_block_total.c.total_extrinsics_signedby_address
+    total_extrinsics_signedby_index = data_block_total.c.total_extrinsics_signedby_index
+    total_events = data_block_total.c.total_events
+    total_events_system = data_block_total.c.total_events_system
+    total_events_module = data_block_total.c.total_events_module
+    total_events_extrinsic = data_block_total.c.total_events_extrinsic
+    total_events_finalization = data_block_total.c.total_events_finalization
+    total_logs = data_block_total.c.total_logs
+    total_blocktime = data_block_total.c.total_blocktime
+    total_accounts = data_block_total.c.total_accounts
+    total_accounts_new = data_block_total.c.total_accounts_new
+    total_accounts_reaped = data_block_total.c.total_accounts_reaped
+    total_sessions_new = data_block_total.c.total_sessions_new
+    total_contracts_new = data_block_total.c.total_contracts_new
+    session_id = data_block_total.c.session_id
 
     @classmethod
     def get_head(cls, session):
@@ -189,6 +289,164 @@ class Extrinsic(BaseModel):
                 item['value'] = ss58_encode(item['value'].replace('0x', ''))
 
         return obj_dict
+
+
+class Log(BaseModel):
+    __tablename__ = 'data_log'
+
+    block_id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
+    log_idx = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
+    type_id = sa.Column(sa.Integer())
+    type = sa.Column(sa.String(64))
+    data = sa.Column(sa.JSON())
+
+
+class Account(BaseModel):
+    __tablename__ = 'data_account'
+
+    id = sa.Column(sa.String(64), primary_key=True)
+    address = sa.Column(sa.String(48), index=True)
+    is_reaped = sa.Column(sa.Boolean, default=False)
+    is_validator = sa.Column(sa.Boolean, default=False)
+    is_nominator = sa.Column(sa.Boolean, default=False)
+    is_contract = sa.Column(sa.Boolean, default=False)
+    count_reaped = sa.Column(sa.Integer(), default=0)
+    balance = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
+    created_at_block = sa.Column(sa.Integer(), nullable=False)
+    updated_at_block = sa.Column(sa.Integer(), nullable=False)
+
+    def serialize_id(self):
+        return self.address
+
+
+class AccountAudit(BaseModel):
+    __tablename__ = 'data_account_audit'
+
+    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
+    account_id = sa.Column(sa.String(64), primary_key=True)
+    block_id = sa.Column(sa.Integer(), index=True, nullable=False)
+    extrinsic_idx = sa.Column(sa.Integer())
+    event_idx = sa.Column(sa.Integer())
+    type_id = sa.Column(sa.Integer(), nullable=False)
+    data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
+
+
+data_session = sa.Table('data_session', BaseModel.metadata,
+    sa.Column('id', sa.Integer(), primary_key=True, autoincrement=False),
+    sa.Column('start_at_block', sa.Integer()),
+    sa.Column('era', sa.Integer()),
+    sa.Column('era_idx', sa.Integer()),
+    sa.Column('created_at_block', sa.Integer(), nullable=False),
+    sa.Column('created_at_extrinsic', sa.Integer()),
+    sa.Column('created_at_event', sa.Integer()),
+    sa.Column('count_validators', sa.Integer()),
+    sa.Column('count_nominators', sa.Integer())
+)
+
+
+data_session_total = sa.Table('data_session_total', BaseModel.metadata,
+    sa.Column('id', sa.Integer(), sa.ForeignKey('data_session.id'), primary_key=True, autoincrement=False),
+    sa.Column('end_at_block', sa.Integer()),
+    sa.Column('count_blocks', sa.Integer())
+)
+
+
+class Session(BaseModel):
+    __table__ = sa.outerjoin(data_session, data_session_total)
+
+    id = column_property(
+        data_session.c.id,
+        data_session_total.c.id
+    )
+
+    start_at_block = data_session.c.start_at_block
+    era = data_session.c.era
+    era_idx = data_session.c.era_idx
+    created_at_block = data_session.c.created_at_block
+    created_at_extrinsic = data_session.c.created_at_extrinsic
+    created_at_event = data_session.c.created_at_event
+    count_validators = data_session.c.count_validators
+    count_nominators = data_session.c.count_nominators
+    end_at_block = data_session_total.c.end_at_block
+    count_blocks = data_session_total.c.count_blocks
+
+
+class SessionValidator(BaseModel):
+    __tablename__ = 'data_session_validator'
+
+    session_id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
+    validator = sa.Column(sa.String(64), index=True, primary_key=True)
+    rank_validator = sa.Column(sa.Integer(), nullable=True)
+    count_nominators = sa.Column(sa.Integer(), nullable=True)
+
+
+class SessionNominator(BaseModel):
+    __tablename__ = 'data_session_nominator'
+
+    session_id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
+    validator = sa.Column(sa.String(64), index=True, primary_key=True)
+    nominator = sa.Column(sa.String(64), index=True, primary_key=True)
+
+
+class AccountIndex(BaseModel):
+    __tablename__ = 'data_account_index'
+
+    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
+    short_address = sa.Column(sa.String(24), index=True)
+    account_id = sa.Column(sa.String(64), index=True)
+    is_reclaimable = sa.Column(sa.Boolean, default=False)
+    is_reclaimed = sa.Column(sa.Boolean, default=False)
+    created_at_block = sa.Column(sa.Integer(), nullable=False)
+    updated_at_block = sa.Column(sa.Integer(), nullable=False)
+
+
+class AccountIndexAudit(BaseModel):
+    __tablename__ = 'data_account_index_audit'
+
+    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
+    account_index_id = sa.Column(sa.Integer(), nullable=True, index=True)
+    account_id = sa.Column(sa.String(64), index=True, nullable=False)
+    block_id = sa.Column(sa.Integer(), index=True, nullable=False)
+    extrinsic_idx = sa.Column(sa.Integer())
+    event_idx = sa.Column(sa.Integer())
+    type_id = sa.Column(sa.Integer(), nullable=False)
+    data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
+
+
+class DemocracyProposal(BaseModel):
+    __tablename__ = 'data_democracy_proposal'
+
+    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
+    proposal = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
+    bond = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
+    created_at_block = sa.Column(sa.Integer(), nullable=False)
+    updated_at_block = sa.Column(sa.Integer(), nullable=False)
+    status = sa.Column(sa.String(64))
+
+
+class DemocracyProposalAudit(BaseModel):
+    __tablename__ = 'data_democracy_proposal_audit'
+
+    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
+    democracy_proposal_id = sa.Column(sa.Integer(), nullable=False, index=True)
+    block_id = sa.Column(sa.Integer(), index=True, nullable=False)
+    extrinsic_idx = sa.Column(sa.Integer())
+    event_idx = sa.Column(sa.Integer())
+    type_id = sa.Column(sa.Integer(), nullable=False)
+    data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
+
+
+class Contract(BaseModel):
+    __tablename__ = 'data_contract'
+
+    code_hash = sa.Column(sa.String(64), primary_key=True)
+    bytecode = sa.Column(LONGTEXT())
+    source = sa.Column(LONGTEXT())
+    abi = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
+    compiler = sa.Column(sa.String(64))
+    created_at_block = sa.Column(sa.Integer(), nullable=False)
+    created_at_extrinsic = sa.Column(sa.Integer())
+    created_at_event = sa.Column(sa.Integer())
 
 
 class Runtime(BaseModel):
