@@ -98,7 +98,7 @@ data_block_total = sa.Table('data_block_total', BaseModel.metadata,
 
 
 class Block(BaseModel):
-    __table__ = sa.outerjoin(data_block, data_block_total)
+    __table__ = sa.join(data_block, data_block_total)
 
     serialize_exclude = ['debug_info']
 
@@ -447,6 +447,9 @@ class Contract(BaseModel):
     created_at_block = sa.Column(sa.Integer(), nullable=False)
     created_at_extrinsic = sa.Column(sa.Integer())
     created_at_event = sa.Column(sa.Integer())
+
+    def serialize_id(self):
+        return self.code_hash
 
 
 class Runtime(BaseModel):

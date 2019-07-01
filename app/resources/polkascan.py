@@ -23,7 +23,7 @@ from dogpile.cache.api import NO_VALUE
 from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
-    RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal
+    RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.utils.ss58 import ss58_decode, ss58_encode
 
@@ -131,7 +131,7 @@ class EventDetailResource(JSONAPIDetailResource):
 
 class NetworkStatisticsResource(JSONAPIResource):
 
-    cache_expiration_time = 60
+    cache_expiration_time = 6
 
     def on_get(self, req, resp, network_id=None):
         resp.status = falcon.HTTP_200
@@ -144,15 +144,19 @@ class NetworkStatisticsResource(JSONAPIResource):
 
         if response is NO_VALUE:
 
+            best_block = Block.query(self.session).filter_by(id=self.session.query(func.max(Block.id)).one()[0]).first()
+
             response = self.get_jsonapi_response(
                 data={
                     'type': 'networkstats',
                     'id': network_id,
                     'attributes': {
-                        'best_block': self.session.query(func.max(Block.id)).one()[0],
-                        'total_signed_extrinsics': Extrinsic.query(self.session).filter_by(signed=1).count(),
-                        'total_events': Event.query(self.session).count(),
-                        'total_blocks': Block.query(self.session).count(),
+                        'best_block': best_block.id,
+                        'total_signed_extrinsics': int(best_block.total_extrinsics_signed),
+                        'total_events': int(best_block.total_events),
+                        'total_events_module': int(best_block.total_events_module),
+                        'total_blocks': 'N/A',
+                        'total_accounts': int(best_block.total_accounts),
                         'total_runtimes': Runtime.query(self.session).count()
                     }
                 },
@@ -203,7 +207,7 @@ class AccountResource(JSONAPIListResource):
 
     def get_query(self):
         return Account.query(self.session).order_by(
-            'address'
+            Account.updated_at_block.desc()
         )
 
 
@@ -260,6 +264,20 @@ class DemocracyProposalDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
         return DemocracyProposal.query(self.session).get(item_id)
+
+
+class ContractListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return Contract.query(self.session).order_by(
+            Contract.created_at_block.desc()
+        )
+
+
+class ContractDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        return Contract.query(self.session).get(item_id)
 
 
 class RuntimeListResource(JSONAPIListResource):
