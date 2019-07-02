@@ -174,7 +174,7 @@ class BalanceTransferResource(JSONAPIListResource):
 
     def get_query(self):
         return Extrinsic.query(self.session).filter(
-            Extrinsic.module_id == 'balances' and Extrinsic.call_id == 'transfer'
+            Extrinsic.module_id == 'balances' and Extrinsic.call_id == 'transfer' and Extrinsic.success == True
         ).order_by(Extrinsic.block_id.desc())
 
     def apply_filters(self, query, params):
