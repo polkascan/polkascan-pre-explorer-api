@@ -23,7 +23,8 @@ from dogpile.cache.api import NO_VALUE
 from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
-    RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract
+    RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
+    BlockTotal
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.utils.ss58 import ss58_decode, ss58_encode
 
@@ -59,10 +60,19 @@ class BlockListResource(JSONAPIListResource):
             Block.id.desc()
         )
 
-    def get_meta(self):
-        return {
-            'best_block': self.session.query(func.max(Block.id)).one()[0]
-        }
+
+class BlockTotalDetailsResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        return BlockTotal.query(self.session).get(item_id)
+
+
+class BlockTotalListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return BlockTotal.query(self.session).order_by(
+            BlockTotal.id.desc()
+        )
 
 
 class ExtrinsicListResource(JSONAPIListResource):
@@ -144,7 +154,7 @@ class NetworkStatisticsResource(JSONAPIResource):
 
         if response is NO_VALUE:
 
-            best_block = Block.query(self.session).filter_by(id=self.session.query(func.max(Block.id)).one()[0]).first()
+            best_block = BlockTotal.query(self.session).filter_by(id=self.session.query(func.max(BlockTotal.id)).one()[0]).first()
 
             response = self.get_jsonapi_response(
                 data={

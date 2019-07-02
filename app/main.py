@@ -58,6 +58,8 @@ app = falcon.API(middleware=[
 # Application routes
 app.add_route('/system/block', polkascan.BlockListResource())
 app.add_route('/system/block/{block_id}', polkascan.BlockDetailsResource())
+app.add_route('/system/block-total', polkascan.BlockTotalListResource())
+app.add_route('/system/block-total/{item_id}', polkascan.BlockTotalDetailsResource())
 app.add_route('/system/extrinsic', polkascan.ExtrinsicListResource())
 app.add_route('/system/extrinsic/{extrinsic_id}', polkascan.ExtrinsicDetailResource())
 app.add_route('/system/event', polkascan.EventsListResource())
