@@ -172,7 +172,7 @@ class JSONAPIDetailResource(JSONAPIResource, ABC):
 
                 cache_response['status'] = falcon.HTTP_200
                 cache_response['media'] = self.get_jsonapi_response(
-                    data=item.serialize(),
+                    data=self.serialize_item(item),
                     relationships=self.get_relationships(req.params.get('include') or [], item),
                     meta=self.get_meta()
                 )

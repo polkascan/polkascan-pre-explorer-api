@@ -180,11 +180,11 @@ class NetworkStatisticsResource(JSONAPIResource):
         resp.media = response
 
 
-class BalanceTransferResource(JSONAPIListResource):
+class BalanceTransferListResource(JSONAPIListResource):
 
     def get_query(self):
         return Extrinsic.query(self.session).filter(
-            Extrinsic.module_id == 'balances' and Extrinsic.call_id == 'transfer' and Extrinsic.success == True
+            Extrinsic.module_id == 'balances' and Extrinsic.call_id == 'transfer'
         ).order_by(Extrinsic.block_id.desc())
 
     def apply_filters(self, query, params):
@@ -195,20 +195,50 @@ class BalanceTransferResource(JSONAPIListResource):
             else:
                 account_id = ss58_decode(params.get('filter[address]'))
 
-            return query.filter_by(address=account_id)
+            query = query.filter_by(address=account_id)
+
+        if params.get('filter[success]'):
+            query = query.filter_by(success=True)
+
+        if params.get('filter[error]'):
+            query = query.filter_by(error=True)
 
         return query
 
     def serialize_item(self, item):
         return {
                 'type': 'balancetransfer',
-                'id': '{}-{}'.format(item.block_id, item.extrinsic_idx),
+                'id': item.extrinsic_hash,
                 'attributes': {
                     'block_id': item.block_id,
                     'extrinsic_hash': item.extrinsic_hash,
                     'sender': ss58_encode(item.address),
                     'destination': ss58_encode(item.params[0]['value']),
-                    'value': item.params[1]['value']
+                    'value': item.params[1]['value'],
+                    'success': item.success,
+                    'error': item.error,
+                }
+        }
+
+
+class BalanceTransferDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        if item_id[0:2] == '0x':
+            return Extrinsic.query(self.session).filter_by(extrinsic_hash=item_id[2:]).first()
+
+    def serialize_item(self, item):
+        return {
+                'type': 'balancetransfer',
+                'id': item.extrinsic_hash,
+                'attributes': {
+                    'block_id': item.block_id,
+                    'extrinsic_hash': item.extrinsic_hash,
+                    'sender': ss58_encode(item.address),
+                    'destination': ss58_encode(item.params[0]['value']),
+                    'value': item.params[1]['value'],
+                    'success': item.success,
+                    'error': item.error,
                 }
         }
 
