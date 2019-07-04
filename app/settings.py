@@ -42,6 +42,7 @@ DOGPILE_CACHE_SETTINGS = {
 DEBUG = False
 
 MAX_RESOURCE_PAGE_SIZE = 100
+LOG_TYPE_AUTHORITIESCHANGE = 1
 
 try:
     from app.local_settings import *

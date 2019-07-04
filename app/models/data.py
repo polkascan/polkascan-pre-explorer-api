@@ -25,6 +25,7 @@ from sqlalchemy.dialects.mysql import LONGTEXT
 
 from app.models.base import BaseModel
 from app.utils.ss58 import ss58_encode
+from app.settings import LOG_TYPE_AUTHORITIESCHANGE
 
 
 class Block(BaseModel):
@@ -234,6 +235,18 @@ class Log(BaseModel):
     type = sa.Column(sa.String(64))
     data = sa.Column(sa.JSON())
 
+    def serialize_id(self):
+        return '{}-{}'.format(self.block_id, self.log_idx)
+
+    def serialize_formatting_hook(self, obj_dict):
+
+        if self.type_id == LOG_TYPE_AUTHORITIESCHANGE:
+
+            for idx, item in enumerate(obj_dict['attributes']['data']['value']):
+                obj_dict['attributes']['data']['value'][idx] = ss58_encode(item.replace('0x', ''))
+
+        return obj_dict
+
 
 class Account(BaseModel):
     __tablename__ = 'data_account'
@@ -313,6 +326,15 @@ class SessionValidator(BaseModel):
     rank_validator = sa.Column(sa.Integer(), nullable=True)
     count_nominators = sa.Column(sa.Integer(), nullable=True)
 
+    def serialize_id(self):
+        return '{}-{}'.format(self.session_id, self.validator)
+
+    def serialize_formatting_hook(self, obj_dict):
+
+        obj_dict['attributes']['validator'] = ss58_encode(obj_dict['attributes']['validator'].replace('0x', ''))
+
+        return obj_dict
+
 
 class SessionNominator(BaseModel):
     __tablename__ = 'data_session_nominator'
@@ -320,6 +342,9 @@ class SessionNominator(BaseModel):
     session_id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
     validator = sa.Column(sa.String(64), index=True, primary_key=True)
     nominator = sa.Column(sa.String(64), index=True, primary_key=True)
+
+    def serialize_id(self):
+        return '{}-{}-{}'.format(self.session_id, self.validator, self.nominator)
 
 
 class AccountIndex(BaseModel):

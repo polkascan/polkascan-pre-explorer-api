@@ -24,7 +24,7 @@ from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
-    BlockTotal
+    BlockTotal, SessionValidator, Log
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.utils.ss58 import ss58_decode, ss58_encode
 
@@ -49,6 +49,9 @@ class BlockDetailsResource(JSONAPIDetailResource):
         if 'events' in include_list:
             relationships['events'] = Event.query(self.session).filter_by(block_id=item.id, system=0).order_by(
                 'event_idx')
+        if 'logs' in include_list:
+            relationships['logs'] = Log.query(self.session).filter_by(block_id=item.id).order_by(
+                'log_idx')
 
         return relationships
 
@@ -137,6 +140,20 @@ class EventDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
         return Event.query(self.session).get(item_id.split('-'))
+
+
+class LogListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return Log.query(self.session).order_by(
+            Log.block_id.desc(), Log.log_idx.asc()
+        )
+
+
+class LogDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        return Log.query(self.session).get(item_id.split('-'))
 
 
 class NetworkStatisticsResource(JSONAPIResource):
@@ -289,7 +306,32 @@ class SessionDetailResource(JSONAPIDetailResource):
                 session_id=item.id
             ).order_by(Block.id.desc())
 
+        if 'validators' in include_list:
+            relationships['validators'] = SessionValidator.query(self.session).filter_by(
+                session_id=item.id
+            ).order_by(SessionValidator.rank_validator)
+
         return relationships
+
+
+class SessionValidatorListResource(JSONAPIListResource):
+
+    cache_expiration_time = 60
+
+    def get_query(self):
+        return SessionValidator.query(self.session).order_by(
+            SessionValidator.id.desc(), SessionValidator.rank_validator
+        )
+
+
+class SessionValidatorDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        session_id, validator = item_id.split('-')
+        return SessionValidator.query(self.session).filter_by(
+            session_id=session_id,
+            validator=validator
+        ).first()
 
 
 class DemocracyProposalListResource(JSONAPIListResource):
