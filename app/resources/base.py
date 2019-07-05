@@ -93,7 +93,7 @@ class JSONAPIListResource(JSONAPIResource, ABC):
         raise NotImplementedError()
 
     def apply_paging(self, query, params):
-        page = int(params.get('page[number]', 0))
+        page = int(params.get('page[number]', 1)) - 1
         page_size = min(int(params.get('page[size]', 25)), MAX_RESOURCE_PAGE_SIZE)
         return query[page * page_size: page * page_size + page_size]
 

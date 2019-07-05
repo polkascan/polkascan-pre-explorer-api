@@ -24,7 +24,7 @@ from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
-    BlockTotal, SessionValidator, Log
+    BlockTotal, SessionValidator, Log, DemocracyReferendum
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.utils.ss58 import ss58_decode, ss58_encode
 
@@ -251,8 +251,11 @@ class BalanceTransferDetailResource(JSONAPIDetailResource):
                 'attributes': {
                     'block_id': item.block_id,
                     'extrinsic_hash': item.extrinsic_hash,
+                    'extrinsic_idx': item.extrinsic_idx,
                     'sender': ss58_encode(item.address),
+                    'sender_id': item.address,
                     'destination': ss58_encode(item.params[0]['value']),
+                    'destination_id': item.params[0]['value'],
                     'value': item.params[1]['value'],
                     'success': item.success,
                     'error': item.error,
@@ -346,6 +349,20 @@ class DemocracyProposalDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
         return DemocracyProposal.query(self.session).get(item_id)
+
+
+class DemocracyReferendumListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return DemocracyReferendum.query(self.session).order_by(
+            DemocracyReferendum.id.desc()
+        )
+
+
+class DemocracyReferendumDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        return DemocracyReferendum.query(self.session).get(item_id)
 
 
 class ContractListResource(JSONAPIListResource):

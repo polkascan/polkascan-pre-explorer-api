@@ -395,6 +395,31 @@ class DemocracyProposalAudit(BaseModel):
     data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
 
 
+class DemocracyReferendum(BaseModel):
+    __tablename__ = 'data_democracy_referendum'
+
+    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
+    proposal_id = sa.Column(sa.Integer(), nullable=True)
+    proposal = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
+    vote_threshold = sa.Column(sa.String(64))
+    success = sa.Column(sa.Boolean(), nullable=True)
+    created_at_block = sa.Column(sa.Integer(), nullable=False)
+    updated_at_block = sa.Column(sa.Integer(), nullable=False)
+    status = sa.Column(sa.String(64))
+
+
+class DemocracyReferendumAudit(BaseModel):
+    __tablename__ = 'data_democracy_referendum_audit'
+
+    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
+    democracy_referendum_id = sa.Column(sa.Integer(), nullable=False, index=True)
+    block_id = sa.Column(sa.Integer(), index=True, nullable=False)
+    extrinsic_idx = sa.Column(sa.Integer())
+    event_idx = sa.Column(sa.Integer())
+    type_id = sa.Column(sa.Integer(), nullable=False)
+    data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
+
+
 class Contract(BaseModel):
     __tablename__ = 'data_contract'
 
