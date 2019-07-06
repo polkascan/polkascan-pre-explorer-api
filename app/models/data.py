@@ -167,6 +167,7 @@ class Event(BaseModel):
         for item in obj_dict['attributes']['attributes']:
             if item['type'] == 'AccountId' and item['value']:
                 # SS58 format AccountId public keys
+                item['orig_value'] = item['value'].replace('0x', '')
                 item['value'] = ss58_encode(item['value'].replace('0x', ''))
 
         return obj_dict
@@ -216,11 +217,13 @@ class Extrinsic(BaseModel):
     def serialize_formatting_hook(self, obj_dict):
 
         if obj_dict['attributes'].get('address'):
+            obj_dict['attributes']['address_id'] = obj_dict['attributes']['address'].replace('0x', '')
             obj_dict['attributes']['address'] = ss58_encode(obj_dict['attributes']['address'].replace('0x', ''))
 
         for item in obj_dict['attributes']['params']:
             if item['type'] == 'Address' and item['value']:
                 # SS58 format Addresses public keys
+                item['orig_value'] = item['value'].replace('0x', '')
                 item['value'] = ss58_encode(item['value'].replace('0x', ''))
 
         return obj_dict
@@ -330,8 +333,8 @@ class SessionValidator(BaseModel):
         return '{}-{}'.format(self.session_id, self.validator)
 
     def serialize_formatting_hook(self, obj_dict):
-
-        obj_dict['attributes']['validator'] = ss58_encode(obj_dict['attributes']['validator'].replace('0x', ''))
+        obj_dict['attributes']['validator_id'] = self.validator
+        obj_dict['attributes']['validator'] = ss58_encode(self.validator.replace('0x', ''))
 
         return obj_dict
 
