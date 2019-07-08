@@ -24,7 +24,7 @@ from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
-    BlockTotal, SessionValidator, Log, DemocracyReferendum
+    BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.utils.ss58 import ss58_decode, ss58_encode
 
@@ -284,6 +284,29 @@ class AccountDetailResource(JSONAPIDetailResource):
         if 'recent_extrinsics' in include_list:
             relationships['recent_extrinsics'] = Extrinsic.query(self.session).filter_by(
                 address=item.id).order_by(Extrinsic.block_id.desc())[:10]
+
+        return relationships
+
+
+class AccountIndexListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return AccountIndex.query(self.session).order_by(
+            AccountIndex.updated_at_block.desc()
+        )
+
+
+class AccountIndexDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        return AccountIndex.query(self.session).filter_by(short_address=item_id).first()
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'recent_extrinsics' in include_list:
+            relationships['recent_extrinsics'] = Extrinsic.query(self.session).filter_by(
+                address=item.account_id).order_by(Extrinsic.block_id.desc())[:10]
 
         return relationships
 

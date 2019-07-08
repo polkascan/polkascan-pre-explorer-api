@@ -361,6 +361,18 @@ class AccountIndex(BaseModel):
     created_at_block = sa.Column(sa.Integer(), nullable=False)
     updated_at_block = sa.Column(sa.Integer(), nullable=False)
 
+    def serialize_id(self):
+        return self.short_address
+
+    def serialize_formatting_hook(self, obj_dict):
+        obj_dict['attributes']['account_id'] = self.account_id
+        if self.account_id:
+            obj_dict['attributes']['address'] = ss58_encode(self.account_id.replace('0x', ''))
+        else:
+            obj_dict['attributes']['address'] = None
+
+        return obj_dict
+
 
 class AccountIndexAudit(BaseModel):
     __tablename__ = 'data_account_index_audit'
