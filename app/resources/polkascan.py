@@ -26,7 +26,7 @@ from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, 
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
     BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
-from app.settings import SUBSTRATE_RPC_URL
+from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION
 from app.utils.ss58 import ss58_decode, ss58_encode
 from substrateinterface import SubstrateInterface
 
@@ -307,7 +307,7 @@ class AccountDetailResource(JSONAPIDetailResource):
         return relationships
 
     def serialize_item(self, item):
-        substrate = SubstrateInterface(SUBSTRATE_RPC_URL)
+        substrate = SubstrateInterface(SUBSTRATE_RPC_URL, metadata_version=SUBSTRATE_METADATA_VERSION)
         data = item.serialize()
 
         data['attributes']['balance'] = substrate.get_storage(
