@@ -26,7 +26,9 @@ from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, 
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
     BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
+from app.settings import SUBSTRATE_RPC_URL
 from app.utils.ss58 import ss58_decode, ss58_encode
+from substrateinterface import SubstrateInterface
 
 
 class BlockDetailsResource(JSONAPIDetailResource):
@@ -172,23 +174,38 @@ class NetworkStatisticsResource(JSONAPIResource):
         if response is NO_VALUE:
 
             best_block = BlockTotal.query(self.session).filter_by(id=self.session.query(func.max(BlockTotal.id)).one()[0]).first()
-
-            response = self.get_jsonapi_response(
-                data={
-                    'type': 'networkstats',
-                    'id': network_id,
-                    'attributes': {
-                        'best_block': best_block.id,
-                        'total_signed_extrinsics': int(best_block.total_extrinsics_signed),
-                        'total_events': int(best_block.total_events),
-                        'total_events_module': int(best_block.total_events_module),
-                        'total_blocks': 'N/A',
-                        'total_accounts': int(best_block.total_accounts),
-                        'total_runtimes': Runtime.query(self.session).count()
-                    }
-                },
-            )
-
+            if best_block:
+                response = self.get_jsonapi_response(
+                    data={
+                        'type': 'networkstats',
+                        'id': network_id,
+                        'attributes': {
+                            'best_block': best_block.id,
+                            'total_signed_extrinsics': int(best_block.total_extrinsics_signed),
+                            'total_events': int(best_block.total_events),
+                            'total_events_module': int(best_block.total_events_module),
+                            'total_blocks': 'N/A',
+                            'total_accounts': int(best_block.total_accounts),
+                            'total_runtimes': Runtime.query(self.session).count()
+                        }
+                    },
+                )
+            else:
+                response = self.get_jsonapi_response(
+                    data={
+                        'type': 'networkstats',
+                        'id': network_id,
+                        'attributes': {
+                            'best_block': 0,
+                            'total_signed_extrinsics': 0,
+                            'total_events': 0,
+                            'total_events_module': 0,
+                            'total_blocks': 'N/A',
+                            'total_accounts': 0,
+                            'total_runtimes': 0
+                        }
+                    },
+                )
             self.cache_region.set(cache_key, response)
             resp.set_header('X-Cache', 'MISS')
         else:
@@ -275,6 +292,8 @@ class AccountResource(JSONAPIListResource):
 
 class AccountDetailResource(JSONAPIDetailResource):
 
+    cache_expiration_time = 6
+
     def get_item(self, item_id):
         return Account.query(self.session).filter_by(address=item_id).first()
 
@@ -286,6 +305,26 @@ class AccountDetailResource(JSONAPIDetailResource):
                 address=item.id).order_by(Extrinsic.block_id.desc())[:10]
 
         return relationships
+
+    def serialize_item(self, item):
+        substrate = SubstrateInterface(SUBSTRATE_RPC_URL)
+        data = item.serialize()
+
+        data['attributes']['balance'] = substrate.get_storage(
+            block_hash=None,
+            module='Balances',
+            function='FreeBalance',
+            params=item.id,
+            return_scale_type='Balance'
+        )
+        data['attributes']['nonce'] = substrate.get_storage(
+            block_hash=None,
+            module='System',
+            function='AccountNonce',
+            params=item.id,
+            return_scale_type='u64'
+        )
+        return data
 
 
 class AccountIndexListResource(JSONAPIListResource):
