@@ -31,7 +31,7 @@ DB_CONNECTION = os.environ.get("DB_CONNECTION", "mysql+mysqlconnector://{}:{}@{}
 
 SUBSTRATE_RPC_URL = os.environ.get("SUBSTRATE_RPC_URL", "http://substrate-node:9933/")
 
-SUBSTRATE_METADATA_VERSION = os.environ.get("SUBSTRATE_METADATA_VERSION", 3)
+SUBSTRATE_METADATA_VERSION = int(os.environ.get("SUBSTRATE_METADATA_VERSION", 3))
 
 DOGPILE_CACHE_SETTINGS = {
 
