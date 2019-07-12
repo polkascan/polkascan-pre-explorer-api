@@ -310,20 +310,34 @@ class AccountDetailResource(JSONAPIDetailResource):
         substrate = SubstrateInterface(SUBSTRATE_RPC_URL, metadata_version=SUBSTRATE_METADATA_VERSION)
         data = item.serialize()
 
+        storage_call = RuntimeStorage.query(self.session).filter_by(
+            module_id='balances',
+            name='FreeBalance',
+        ).order_by(RuntimeStorage.spec_version.desc()).first()
+
         data['attributes']['balance'] = substrate.get_storage(
             block_hash=None,
             module='Balances',
             function='FreeBalance',
             params=item.id,
-            return_scale_type='Balance'
+            return_scale_type=storage_call.type_value,
+            hasher=storage_call.type_hasher
         )
+
+        storage_call = RuntimeStorage.query(self.session).filter_by(
+            module_id='system',
+            name='AccountNonce',
+        ).order_by(RuntimeStorage.spec_version.desc()).first()
+
         data['attributes']['nonce'] = substrate.get_storage(
             block_hash=None,
             module='System',
             function='AccountNonce',
             params=item.id,
-            return_scale_type='u64'
+            return_scale_type=storage_call.type_value,
+            hasher=storage_call.type_hasher
         )
+
         return data
 
 
