@@ -304,6 +304,10 @@ class AccountDetailResource(JSONAPIDetailResource):
             relationships['recent_extrinsics'] = Extrinsic.query(self.session).filter_by(
                 address=item.id).order_by(Extrinsic.block_id.desc())[:10]
 
+        if 'indices' in include_list:
+            relationships['indices'] = AccountIndex.query(self.session).filter_by(
+                account_id=item.id).order_by(AccountIndex.updated_at_block.desc())
+
         return relationships
 
     def serialize_item(self, item):
@@ -315,10 +319,24 @@ class AccountDetailResource(JSONAPIDetailResource):
             name='FreeBalance',
         ).order_by(RuntimeStorage.spec_version.desc()).first()
 
-        data['attributes']['balance'] = substrate.get_storage(
+        data['attributes']['free_balance'] = substrate.get_storage(
             block_hash=None,
             module='Balances',
             function='FreeBalance',
+            params=item.id,
+            return_scale_type=storage_call.type_value,
+            hasher=storage_call.type_hasher
+        )
+
+        storage_call = RuntimeStorage.query(self.session).filter_by(
+            module_id='balances',
+            name='ReservedBalance',
+        ).order_by(RuntimeStorage.spec_version.desc()).first()
+
+        data['attributes']['reserved_balance'] = substrate.get_storage(
+            block_hash=None,
+            module='Balances',
+            function='ReservedBalance',
             params=item.id,
             return_scale_type=storage_call.type_value,
             hasher=storage_call.type_hasher
