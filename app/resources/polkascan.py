@@ -24,7 +24,7 @@ from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
-    BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex
+    BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION
 from app.utils.ss58 import ss58_decode, ss58_encode
@@ -508,7 +508,7 @@ class RuntimeDetailResource(JSONAPIDetailResource):
 
 class RuntimeCallListResource(JSONAPIListResource):
 
-    cache_expiration_time = 60
+    cache_expiration_time = 3600
 
     def get_query(self):
         return RuntimeCall.query(self.session).order_by(
@@ -545,7 +545,7 @@ class RuntimeCallDetailResource(JSONAPIDetailResource):
 
 class RuntimeEventListResource(JSONAPIListResource):
 
-    cache_expiration_time = 60
+    cache_expiration_time = 3600
 
     def get_query(self):
         return RuntimeEvent.query(self.session).order_by(
@@ -602,7 +602,12 @@ class RuntimeModuleDetailResource(JSONAPIDetailResource):
         if 'storage' in include_list:
             relationships['storage'] = RuntimeStorage.query(self.session).filter_by(
                 spec_version=item.spec_version, module_id=item.module_id).order_by(
-                'lookup', 'id')
+                'name')
+
+        if 'constants' in include_list:
+            relationships['constants'] = RuntimeConstant.query(self.session).filter_by(
+                spec_version=item.spec_version, module_id=item.module_id).order_by(
+                'name')
 
         return relationships
 
@@ -612,6 +617,27 @@ class RuntimeStorageDetailResource(JSONAPIDetailResource):
     def get_item(self, item_id):
         spec_version, module_id, name = item_id.split('-')
         return RuntimeStorage.query(self.session).filter_by(
+            spec_version=spec_version,
+            module_id=module_id,
+            name=name
+        ).first()
+
+
+class RuntimeConstantListResource(JSONAPIListResource):
+
+    cache_expiration_time = 3600
+
+    def get_query(self):
+        return RuntimeConstant.query(self.session).order_by(
+            RuntimeConstant.spec_version.desc(), RuntimeConstant.module_id.asc(), RuntimeConstant.name.asc()
+        )
+
+
+class RuntimeConstantDetailResource(JSONAPIDetailResource):
+
+    def get_item(self, item_id):
+        spec_version, module_id, name = item_id.split('-')
+        return RuntimeConstant.query(self.session).filter_by(
             spec_version=spec_version,
             module_id=module_id,
             name=name
