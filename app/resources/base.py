@@ -35,6 +35,8 @@ class BaseResource(object):
 
 class JSONAPIResource(BaseResource):
 
+    cache_expiration_time = None
+
     def apply_filters(self, query, params):
         return query
 
@@ -43,6 +45,13 @@ class JSONAPIResource(BaseResource):
 
     def serialize_item(self, item):
         return item.serialize()
+
+    def process_get_response(self, req, resp, **kwargs):
+        return {
+            'status': falcon.HTTP_200,
+            'media': self.get_jsonapi_response(data=None),
+            'cacheable': False
+        }
 
     def get_jsonapi_response(self, data, meta=None, errors=None, links=None, relationships=None, included=None):
 
@@ -83,6 +92,31 @@ class JSONAPIResource(BaseResource):
 
         return result
 
+    def on_get(self, req, resp, **kwargs):
+
+        cache_key = '{}-{}'.format(req.method, req.url)
+
+        if self.cache_expiration_time:
+            # Try to retrieve request from cache
+            cache_response = self.cache_region.get(cache_key, self.cache_expiration_time)
+
+            if cache_response is not NO_VALUE:
+                resp.set_header('X-Cache', 'HIT')
+
+            else:
+                # Process request
+                cache_response = self.process_get_response(req, resp, **kwargs)
+
+                if cache_response.get('cacheable'):
+                    # Store result in cache
+                    self.cache_region.set(cache_key, cache_response)
+                    resp.set_header('X-Cache', 'MISS')
+        else:
+            cache_response = self.process_get_response(req, resp, **kwargs)
+
+        resp.status = cache_response.get('status')
+        resp.media = cache_response.get('media')
+
 
 class JSONAPIListResource(JSONAPIResource, ABC):
 
@@ -97,36 +131,19 @@ class JSONAPIListResource(JSONAPIResource, ABC):
         page_size = min(int(params.get('page[size]', 25)), MAX_RESOURCE_PAGE_SIZE)
         return query[page * page_size: page * page_size + page_size]
 
-    def on_get(self, req, resp):
+    def process_get_response(self, req, resp, **kwargs):
+        items = self.get_query()
+        items = self.apply_filters(items, req.params)
+        items = self.apply_paging(items, req.params)
 
-        cache_key = '{}-{}'.format(req.method, req.url)
-
-        cache_response = None
-
-        if self.cache_expiration_time:
-            cache_response = self.cache_region.get(cache_key, self.cache_expiration_time)
-            resp.set_header('X-Cache', 'HIT')
-
-        if not self.cache_expiration_time or cache_response is NO_VALUE:
-
-            items = self.get_query()
-            items = self.apply_filters(items, req.params)
-            items = self.apply_paging(items, req.params)
-
-            cache_response = {
-                'status': falcon.HTTP_200,
-                'media': self.get_jsonapi_response(
-                    data=[self.serialize_item(item) for item in items],
-                    meta=self.get_meta()
-                )
-            }
-
-            if self.cache_expiration_time:
-                self.cache_region.set(cache_key, cache_response)
-                resp.set_header('X-Cache', 'MISS')
-
-        resp.status = cache_response['status']
-        resp.media = cache_response['media']
+        return {
+            'status': falcon.HTTP_200,
+            'media': self.get_jsonapi_response(
+                data=[self.serialize_item(item) for item in items],
+                meta=self.get_meta()
+            ),
+            'cacheable': True
+        }
 
 
 class JSONAPIDetailResource(JSONAPIResource, ABC):
@@ -143,43 +160,26 @@ class JSONAPIDetailResource(JSONAPIResource, ABC):
     def get_relationships(self, include_list, item):
         return {}
 
-    def on_get(self, req, resp, **kwargs):
+    def process_get_response(self, req, resp, **kwargs):
+        item = self.get_item(kwargs.get(self.get_item_url_name()))
 
-        cache_key = '{}-{}'.format(req.method, req.url)
+        if not item:
+            response = {
+                'status': falcon.HTTP_404,
+                'media': None,
+                'cacheable': False
+            }
 
-        cache_response = None
+        else:
 
-        if self.cache_expiration_time:
-
-            cache_response = self.cache_region.get(cache_key, self.cache_expiration_time)
-
-            if cache_response is not NO_VALUE:
-                resp.set_header('X-Cache', 'HIT')
-
-        if not self.cache_expiration_time or cache_response is NO_VALUE:
-
-            item = self.get_item(kwargs.get(self.get_item_url_name()))
-
-            cache_response = {}
-
-            if not item:
-                cache_response = {
-                    'status': falcon.HTTP_404,
-                    'media': None
-                }
-
-            else:
-
-                cache_response['status'] = falcon.HTTP_200
-                cache_response['media'] = self.get_jsonapi_response(
+            response = {
+                'status': falcon.HTTP_200,
+                'media': self.get_jsonapi_response(
                     data=self.serialize_item(item),
                     relationships=self.get_relationships(req.params.get('include') or [], item),
                     meta=self.get_meta()
-                )
+                ),
+                'cacheable': True
+            }
 
-                if self.cache_expiration_time:
-                    self.cache_region.set(cache_key, cache_response)
-                    resp.set_header('X-Cache', 'MISS')
-
-        resp.status = cache_response['status']
-        resp.media = cache_response['media']
+        return response
