@@ -84,7 +84,7 @@ class ExtrinsicListResource(JSONAPIListResource):
 
     def get_query(self):
         return Extrinsic.query(self.session).order_by(
-            Extrinsic.block_id.desc(), Extrinsic.extrinsic_idx.asc()
+            Extrinsic.block_id.desc()
         )
 
     def apply_filters(self, query, params):
@@ -131,7 +131,7 @@ class EventsListResource(JSONAPIListResource):
 
     def get_query(self):
         return Event.query(self.session).filter(Event.system == False).order_by(
-            Event.block_id.desc(), Event.event_idx.asc()
+            Event.block_id.desc()
         )
 
 
@@ -148,7 +148,7 @@ class LogListResource(JSONAPIListResource):
 
     def get_query(self):
         return Log.query(self.session).order_by(
-            Log.block_id.desc(), Log.log_idx.asc()
+            Log.block_id.desc()
         )
 
 

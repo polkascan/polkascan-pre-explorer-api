@@ -234,7 +234,7 @@ class Log(BaseModel):
 
     block_id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
     log_idx = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
-    type_id = sa.Column(sa.Integer())
+    type_id = sa.Column(sa.Integer(), index=True)
     type = sa.Column(sa.String(64))
     data = sa.Column(sa.JSON())
 
