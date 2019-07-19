@@ -26,7 +26,7 @@ from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, 
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
     BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
-from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION
+from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE
 from app.utils.ss58 import ss58_decode, ss58_encode
 from substrateinterface import SubstrateInterface
 
@@ -105,7 +105,7 @@ class ExtrinsicListResource(JSONAPIListResource):
             if len(params.get('filter[address]')) == 64:
                 account_id = params.get('filter[address]')
             else:
-                account_id = ss58_decode(params.get('filter[address]'))
+                account_id = ss58_decode(params.get('filter[address]'), SUBSTRATE_ADDRESS_TYPE)
 
             query = query.filter_by(address=account_id)
 
@@ -227,7 +227,7 @@ class BalanceTransferListResource(JSONAPIListResource):
             if len(params.get('filter[address]')) == 64:
                 account_id = params.get('filter[address]')
             else:
-                account_id = ss58_decode(params.get('filter[address]'))
+                account_id = ss58_decode(params.get('filter[address]'), SUBSTRATE_ADDRESS_TYPE)
 
             query = query.filter_by(address=account_id)
 
@@ -246,9 +246,9 @@ class BalanceTransferListResource(JSONAPIListResource):
                 'attributes': {
                     'block_id': item.block_id,
                     'extrinsic_hash': item.extrinsic_hash,
-                    'sender': ss58_encode(item.address),
+                    'sender': ss58_encode(item.address, SUBSTRATE_ADDRESS_TYPE),
                     'sender_id': item.address,
-                    'destination': ss58_encode(item.params[0]['value']),
+                    'destination': ss58_encode(item.params[0]['value'], SUBSTRATE_ADDRESS_TYPE),
                     'destination_id': item.params[0]['value'].replace('0x', ''),
                     'value': item.params[1]['value'],
                     'success': item.success,
@@ -271,9 +271,9 @@ class BalanceTransferDetailResource(JSONAPIDetailResource):
                     'block_id': item.block_id,
                     'extrinsic_hash': item.extrinsic_hash,
                     'extrinsic_idx': item.extrinsic_idx,
-                    'sender': ss58_encode(item.address),
+                    'sender': ss58_encode(item.address, SUBSTRATE_ADDRESS_TYPE),
                     'sender_id': item.address,
-                    'destination': ss58_encode(item.params[0]['value']),
+                    'destination': ss58_encode(item.params[0]['value'], SUBSTRATE_ADDRESS_TYPE),
                     'destination_id': item.params[0]['value'].replace('0x', ''),
                     'value': item.params[1]['value'],
                     'success': item.success,

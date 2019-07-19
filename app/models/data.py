@@ -25,7 +25,7 @@ from sqlalchemy.dialects.mysql import LONGTEXT
 
 from app.models.base import BaseModel
 from app.utils.ss58 import ss58_encode
-from app.settings import LOG_TYPE_AUTHORITIESCHANGE
+from app.settings import LOG_TYPE_AUTHORITIESCHANGE, SUBSTRATE_ADDRESS_TYPE
 
 
 class Block(BaseModel):
@@ -168,7 +168,7 @@ class Event(BaseModel):
             if item['type'] == 'AccountId' and item['value']:
                 # SS58 format AccountId public keys
                 item['orig_value'] = item['value'].replace('0x', '')
-                item['value'] = ss58_encode(item['value'].replace('0x', ''))
+                item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
 
         return obj_dict
 
@@ -218,13 +218,13 @@ class Extrinsic(BaseModel):
 
         if obj_dict['attributes'].get('address'):
             obj_dict['attributes']['address_id'] = obj_dict['attributes']['address'].replace('0x', '')
-            obj_dict['attributes']['address'] = ss58_encode(obj_dict['attributes']['address'].replace('0x', ''))
+            obj_dict['attributes']['address'] = ss58_encode(obj_dict['attributes']['address'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
 
         for item in obj_dict['attributes']['params']:
             if item['type'] == 'Address' and item['value']:
                 # SS58 format Addresses public keys
                 item['orig_value'] = item['value'].replace('0x', '')
-                item['value'] = ss58_encode(item['value'].replace('0x', ''))
+                item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
 
         return obj_dict
 
@@ -246,7 +246,7 @@ class Log(BaseModel):
         if self.type_id == LOG_TYPE_AUTHORITIESCHANGE:
 
             for idx, item in enumerate(obj_dict['attributes']['data']['value']):
-                obj_dict['attributes']['data']['value'][idx] = ss58_encode(item.replace('0x', ''))
+                obj_dict['attributes']['data']['value'][idx] = ss58_encode(item.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
 
         return obj_dict
 
@@ -334,7 +334,7 @@ class SessionValidator(BaseModel):
 
     def serialize_formatting_hook(self, obj_dict):
         obj_dict['attributes']['validator_id'] = self.validator
-        obj_dict['attributes']['validator'] = ss58_encode(self.validator.replace('0x', ''))
+        obj_dict['attributes']['validator'] = ss58_encode(self.validator.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
 
         return obj_dict
 
@@ -367,7 +367,7 @@ class AccountIndex(BaseModel):
     def serialize_formatting_hook(self, obj_dict):
         obj_dict['attributes']['account_id'] = self.account_id
         if self.account_id:
-            obj_dict['attributes']['address'] = ss58_encode(self.account_id.replace('0x', ''))
+            obj_dict['attributes']['address'] = ss58_encode(self.account_id.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
         else:
             obj_dict['attributes']['address'] = None
 
