@@ -8,13 +8,12 @@ echo "==========================="
 echo "Environment: $ENVIRONMENT"
 echo "==========================="
 
-echo "Wait for database..."
-# Let the DB start
-sleep 10;
-
 echo "Running gunicorn..."
 
 if [ "$ENVIRONMENT" = "dev" ]; then
+    # Expand path to local versions of packages
+    export PYTHONPATH=$PYTHONPATH:./py-substrate-interface/:./py-scale-codec/
+
     gunicorn -b 0.0.0.0:8000 --workers=2 app.main:app --reload
 fi
 

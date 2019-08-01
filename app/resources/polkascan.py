@@ -24,7 +24,7 @@ from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
-    BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant
+    BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant, SessionNominator
 from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE
 from app.utils.ss58 import ss58_decode, ss58_encode
@@ -426,11 +426,21 @@ class SessionValidatorListResource(JSONAPIListResource):
 class SessionValidatorDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
-        session_id, validator = item_id.split('-')
+        session_id, rank_validator = item_id.split('-')
         return SessionValidator.query(self.session).filter_by(
             session_id=session_id,
-            validator=validator
+            rank_validator=rank_validator
         ).first()
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'nominators' in include_list:
+            relationships['nominators'] = SessionNominator.query(self.session).filter_by(
+                session_id=item.session_id, rank_validator=item.rank_validator
+            ).order_by(SessionNominator.rank_nominator)
+
+        return relationships
 
 
 class DemocracyProposalListResource(JSONAPIListResource):

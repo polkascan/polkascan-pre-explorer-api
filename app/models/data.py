@@ -325,16 +325,34 @@ class SessionValidator(BaseModel):
     __tablename__ = 'data_session_validator'
 
     session_id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
-    validator = sa.Column(sa.String(64), index=True, primary_key=True)
-    rank_validator = sa.Column(sa.Integer(), nullable=True)
+    rank_validator = sa.Column(sa.Integer(), primary_key=True, autoincrement=False, index=True)
+    validator_stash = sa.Column(sa.String(64), index=True)
+    validator_controller = sa.Column(sa.String(64), index=True)
+    validator_session = sa.Column(sa.String(64), index=True)
+    bonded_total = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
+    bonded_active = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
+    bonded_nominators = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
+    bonded_own = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
+    unlocking = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
     count_nominators = sa.Column(sa.Integer(), nullable=True)
+    unstake_threshold = sa.Column(sa.Integer(), nullable=True)
+    commission = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True)
 
     def serialize_id(self):
-        return '{}-{}'.format(self.session_id, self.validator)
+        return '{}-{}'.format(self.session_id, self.rank_validator)
 
     def serialize_formatting_hook(self, obj_dict):
-        obj_dict['attributes']['validator_id'] = self.validator
-        obj_dict['attributes']['validator'] = ss58_encode(self.validator.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+        obj_dict['attributes']['validator_stash_id'] = self.validator_stash
+        obj_dict['attributes']['validator_stash'] = ss58_encode(self.validator_stash.replace('0x', ''),
+                                                                SUBSTRATE_ADDRESS_TYPE)
+
+        obj_dict['attributes']['validator_controller_id'] = self.validator_controller
+        obj_dict['attributes']['validator_controller'] = ss58_encode(self.validator_controller.replace('0x', ''),
+                                                                     SUBSTRATE_ADDRESS_TYPE)
+
+        obj_dict['attributes']['validator_session_id'] = self.validator_session
+        obj_dict['attributes']['validator_session'] = ss58_encode(self.validator_session.replace('0x', ''),
+                                                                  SUBSTRATE_ADDRESS_TYPE)
 
         return obj_dict
 
@@ -343,11 +361,26 @@ class SessionNominator(BaseModel):
     __tablename__ = 'data_session_nominator'
 
     session_id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
-    validator = sa.Column(sa.String(64), index=True, primary_key=True)
-    nominator = sa.Column(sa.String(64), index=True, primary_key=True)
+    rank_validator = sa.Column(sa.Integer(), primary_key=True, autoincrement=False, index=True)
+    rank_nominator = sa.Column(sa.Integer(), primary_key=True, autoincrement=False, index=True)
+    nominator_stash = sa.Column(sa.String(64), index=True)
+    nominator_controller = sa.Column(sa.String(64), index=True, nullable=True)
+    bonded = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
 
     def serialize_id(self):
-        return '{}-{}-{}'.format(self.session_id, self.validator, self.nominator)
+        return '{}-{}-{}'.format(self.session_id, self.rank_validator, self.rank_nominator)
+
+    def serialize_formatting_hook(self, obj_dict):
+        obj_dict['attributes']['nominator_stash_id'] = self.nominator_stash
+        obj_dict['attributes']['nominator_stash'] = ss58_encode(self.nominator_stash.replace('0x', ''),
+                                                                SUBSTRATE_ADDRESS_TYPE)
+
+        if self.nominator_controller:
+            obj_dict['attributes']['nominator_controller_id'] = self.nominator_controller
+            obj_dict['attributes']['nominator_controller'] = ss58_encode(self.nominator_controller.replace('0x', ''),
+                                                                         SUBSTRATE_ADDRESS_TYPE)
+
+        return obj_dict
 
 
 class AccountIndex(BaseModel):
