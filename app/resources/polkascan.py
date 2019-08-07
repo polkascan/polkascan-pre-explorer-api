@@ -1,21 +1,21 @@
 #  Polkascan PRE Explorer API
-# 
+#
 #  Copyright 2018-2019 openAware BV (NL).
 #  This file is part of Polkascan.
-# 
+#
 #  Polkascan is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-# 
+#
 #  Polkascan is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-# 
+#
 #  You should have received a copy of the GNU General Public License
 #  along with Polkascan. If not, see <http://www.gnu.org/licenses/>.
-# 
+#
 #  polkascan.py
 
 import falcon
@@ -419,8 +419,18 @@ class SessionValidatorListResource(JSONAPIListResource):
 
     def get_query(self):
         return SessionValidator.query(self.session).order_by(
-            SessionValidator.id.desc(), SessionValidator.rank_validator
+            SessionValidator.session_id, SessionValidator.rank_validator
         )
+
+    def apply_filters(self, query, params):
+
+        if params.get('filter[latestSession]'):
+
+            session = Session.query(self.session).order_by(Session.id.desc()).first()
+
+            query = query.filter_by(session_id=session.id)
+
+        return query
 
 
 class SessionValidatorDetailResource(JSONAPIDetailResource):
@@ -441,6 +451,26 @@ class SessionValidatorDetailResource(JSONAPIDetailResource):
             ).order_by(SessionNominator.rank_nominator)
 
         return relationships
+
+
+class SessionNominatorListResource(JSONAPIListResource):
+
+    cache_expiration_time = 60
+
+    def get_query(self):
+        return SessionNominator.query(self.session).order_by(
+            SessionNominator.session_id, SessionNominator.rank_validator, SessionNominator.rank_nominator
+        )
+
+    def apply_filters(self, query, params):
+
+        if params.get('filter[latestSession]'):
+
+            session = Session.query(self.session).order_by(Session.id.desc()).first()
+
+            query = query.filter_by(session_id=session.id)
+
+        return query
 
 
 class DemocracyProposalListResource(JSONAPIListResource):
@@ -588,6 +618,46 @@ class RuntimeEventDetailResource(JSONAPIDetailResource):
                 event_id=item.event_id, module_id=item.module_id).order_by(Event.block_id.desc())[:10]
 
         return relationships
+
+
+class RuntimeTypeListResource(JSONAPIListResource):
+
+    cache_expiration_time = 3600
+
+    def get_query(self):
+        return RuntimeType.query(self.session).order_by(
+            'spec_version', 'type_string'
+        )
+
+    def apply_filters(self, query, params):
+
+        if params.get('filter[latestRuntime]'):
+
+            latest_runtime = Runtime.query(self.session).order_by(Runtime.spec_version.desc()).first()
+
+            query = query.filter_by(spec_version=latest_runtime.spec_version)
+
+        return query
+
+
+class RuntimeModuleListResource(JSONAPIListResource):
+
+    cache_expiration_time = 3600
+
+    def get_query(self):
+        return RuntimeModule.query(self.session).order_by(
+            'spec_version', 'name'
+        )
+
+    def apply_filters(self, query, params):
+
+        if params.get('filter[latestRuntime]'):
+
+            latest_runtime = Runtime.query(self.session).order_by(Runtime.spec_version.desc()).first()
+
+            query = query.filter_by(spec_version=latest_runtime.spec_version)
+
+        return query
 
 
 class RuntimeModuleDetailResource(JSONAPIDetailResource):
