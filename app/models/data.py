@@ -343,16 +343,26 @@ class SessionValidator(BaseModel):
 
     def serialize_formatting_hook(self, obj_dict):
         obj_dict['attributes']['validator_stash_id'] = self.validator_stash
-        obj_dict['attributes']['validator_stash'] = ss58_encode(self.validator_stash.replace('0x', ''),
-                                                                SUBSTRATE_ADDRESS_TYPE)
+        if self.validator_stash:
+            obj_dict['attributes']['validator_stash'] = ss58_encode(self.validator_stash.replace('0x', ''),
+                                                                    SUBSTRATE_ADDRESS_TYPE)
+        else:
+            obj_dict['attributes']['validator_stash'] = None
 
         obj_dict['attributes']['validator_controller_id'] = self.validator_controller
-        obj_dict['attributes']['validator_controller'] = ss58_encode(self.validator_controller.replace('0x', ''),
-                                                                     SUBSTRATE_ADDRESS_TYPE)
+
+        if self.validator_controller:
+            obj_dict['attributes']['validator_controller'] = ss58_encode(self.validator_controller.replace('0x', ''),
+                                                                         SUBSTRATE_ADDRESS_TYPE)
+        else:
+            obj_dict['attributes']['validator_controller'] = None
 
         obj_dict['attributes']['validator_session_id'] = self.validator_session
-        obj_dict['attributes']['validator_session'] = ss58_encode(self.validator_session.replace('0x', ''),
-                                                                  SUBSTRATE_ADDRESS_TYPE)
+        if self.validator_session:
+            obj_dict['attributes']['validator_session'] = ss58_encode(self.validator_session.replace('0x', ''),
+                                                                      SUBSTRATE_ADDRESS_TYPE)
+        else:
+            obj_dict['attributes']['validator_session'] = None
 
         return obj_dict
 
