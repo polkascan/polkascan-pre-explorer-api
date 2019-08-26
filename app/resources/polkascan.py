@@ -25,9 +25,11 @@ from sqlalchemy import func
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
     BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant, SessionNominator
-from app.resources.base import BaseResource, JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
-from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE
+from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
+from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY
+from app.type_registry import load_type_registry
 from app.utils.ss58 import ss58_decode, ss58_encode
+from scalecodec.base import RuntimeConfiguration
 from substrateinterface import SubstrateInterface
 
 
@@ -293,6 +295,10 @@ class AccountResource(JSONAPIListResource):
 class AccountDetailResource(JSONAPIDetailResource):
 
     cache_expiration_time = 6
+
+    def __init__(self):
+        RuntimeConfiguration().update_type_registry(load_type_registry(TYPE_REGISTRY))
+        super(AccountDetailResource, self).__init__()
 
     def get_item(self, item_id):
         return Account.query(self.session).filter_by(address=item_id).first()
