@@ -50,6 +50,12 @@ class BlockDetailsResource(JSONAPIDetailResource):
         if 'extrinsics' in include_list:
             relationships['extrinsics'] = Extrinsic.query(self.session).filter_by(block_id=item.id).order_by(
                 'extrinsic_idx')
+        if 'transactions' in include_list:
+            relationships['transactions'] = Extrinsic.query(self.session).filter_by(block_id=item.id, signed=1).order_by(
+                'extrinsic_idx')
+        if 'inherents' in include_list:
+            relationships['inherents'] = Extrinsic.query(self.session).filter_by(block_id=item.id, signed=0).order_by(
+                'extrinsic_idx')
         if 'events' in include_list:
             relationships['events'] = Event.query(self.session).filter_by(block_id=item.id, system=0).order_by(
                 'event_idx')
