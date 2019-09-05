@@ -17,8 +17,8 @@ Mako==1.0.14
 MarkupSafe==1.1.1
 meinheld==1.0.1
 more-itertools==6.0.0
-mysql-connector==2.2.9
-mysql-connector-python==8.0.17
+mysql-connector==2.1.7
+mysql-connector-python==8.0.15
 pluggy==0.12.0
 protobuf==3.9.1
 py==1.8.0
