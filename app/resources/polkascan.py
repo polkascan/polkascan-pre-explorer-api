@@ -24,7 +24,8 @@ from sqlalchemy import func
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
-    BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant, SessionNominator
+    BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant, SessionNominator, \
+    DemocracyVote
 from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY
 from app.type_registry import load_type_registry
@@ -508,6 +509,16 @@ class DemocracyReferendumListResource(JSONAPIListResource):
 
 
 class DemocracyReferendumDetailResource(JSONAPIDetailResource):
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'votes' in include_list:
+            relationships['votes'] = DemocracyVote.query(self.session).filter_by(
+                democracy_referendum_id=item.id
+            ).order_by(DemocracyVote.updated_at_block.desc())
+
+        return relationships
 
     def get_item(self, item_id):
         return DemocracyReferendum.query(self.session).get(item_id)

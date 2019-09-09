@@ -214,6 +214,11 @@ class Extrinsic(BaseModel):
     def serialize_id(self):
         return '{}-{}'.format(self.block_id, self.extrinsic_idx)
 
+    def format_address(self, item):
+        item['orig_value'] = item['value'].replace('0x', '')
+        item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+        return item
+
     def serialize_formatting_hook(self, obj_dict):
 
         if obj_dict['attributes'].get('address'):
@@ -221,10 +226,14 @@ class Extrinsic(BaseModel):
             obj_dict['attributes']['address'] = ss58_encode(obj_dict['attributes']['address'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
 
         for item in obj_dict['attributes']['params']:
+            # SS58 format Addresses public keys
+
             if item['type'] == 'Address' and item['value']:
-                # SS58 format Addresses public keys
-                item['orig_value'] = item['value'].replace('0x', '')
-                item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                self.format_address(item)
+            if item['type'] == 'Box<Proposal>':
+                for proposal_param in item['value'].get('params', []):
+                    if proposal_param['type'] == 'Address':
+                        self.format_address(proposal_param)
 
         return obj_dict
 
@@ -440,6 +449,19 @@ class DemocracyProposal(BaseModel):
     updated_at_block = sa.Column(sa.Integer(), nullable=False)
     status = sa.Column(sa.String(64))
 
+    def format_address(self, item):
+        item['orig_value'] = item['value'].replace('0x', '')
+        item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+        return item
+
+    def serialize_formatting_hook(self, obj_dict):
+
+        for proposal_param in obj_dict['attributes']['proposal'].get('params', []):
+            if proposal_param['type'] == 'Address':
+                self.format_address(proposal_param)
+
+        return obj_dict
+
 
 class DemocracyProposalAudit(BaseModel):
     __tablename__ = 'data_democracy_proposal_audit'
@@ -464,6 +486,19 @@ class DemocracyReferendum(BaseModel):
     created_at_block = sa.Column(sa.Integer(), nullable=False)
     updated_at_block = sa.Column(sa.Integer(), nullable=False)
     status = sa.Column(sa.String(64))
+
+    def format_address(self, item):
+        item['orig_value'] = item['value'].replace('0x', '')
+        item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+        return item
+
+    def serialize_formatting_hook(self, obj_dict):
+
+        for proposal_param in obj_dict['attributes']['proposal'].get('proposal', {}).get('params', []):
+            if proposal_param['type'] == 'Address':
+                self.format_address(proposal_param)
+
+        return obj_dict
 
 
 class DemocracyReferendumAudit(BaseModel):
@@ -494,6 +529,12 @@ class DemocracyVote(BaseModel):
     vote_no_weighted = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True)
     created_at_block = sa.Column(sa.Integer(), nullable=False)
     updated_at_block = sa.Column(sa.Integer(), nullable=False)
+
+    def serialize_formatting_hook(self, obj_dict):
+        obj_dict['attributes']['vote_address'] = ss58_encode(self.vote_account_id.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+        obj_dict['attributes']['stash_address'] = ss58_encode(self.stash_account_id.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+
+        return obj_dict
 
 
 class DemocracyVoteAudit(BaseModel):
