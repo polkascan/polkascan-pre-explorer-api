@@ -138,6 +138,18 @@ class ExtrinsicDetailResource(JSONAPIDetailResource):
 
 class EventsListResource(JSONAPIListResource):
 
+    def apply_filters(self, query, params):
+
+        if params.get('filter[module_id]'):
+
+            query = query.filter_by(module_id=params.get('filter[module_id]'))
+
+        if params.get('filter[event_id]'):
+
+            query = query.filter_by(event_id=params.get('filter[event_id]'))
+
+        return query
+
     def get_query(self):
         return Event.query(self.session).filter(Event.system == False).order_by(
             Event.block_id.desc()
@@ -573,6 +585,20 @@ class RuntimeCallListResource(JSONAPIListResource):
 
     cache_expiration_time = 3600
 
+    def apply_filters(self, query, params):
+
+        if params.get('filter[latestRuntime]'):
+
+            latest_runtime = Runtime.query(self.session).order_by(Runtime.spec_version.desc()).first()
+
+            query = query.filter_by(spec_version=latest_runtime.spec_version)
+
+        if params.get('filter[module_id]'):
+
+            query = query.filter_by(module_id=params.get('filter[module_id]'))
+
+        return query
+
     def get_query(self):
         return RuntimeCall.query(self.session).order_by(
             RuntimeCall.spec_version.asc(), RuntimeCall.module_id.asc(), RuntimeCall.call_id.asc()
@@ -609,6 +635,20 @@ class RuntimeCallDetailResource(JSONAPIDetailResource):
 class RuntimeEventListResource(JSONAPIListResource):
 
     cache_expiration_time = 3600
+
+    def apply_filters(self, query, params):
+
+        if params.get('filter[latestRuntime]'):
+
+            latest_runtime = Runtime.query(self.session).order_by(Runtime.spec_version.desc()).first()
+
+            query = query.filter_by(spec_version=latest_runtime.spec_version)
+
+        if params.get('filter[module_id]'):
+
+            query = query.filter_by(module_id=params.get('filter[module_id]'))
+
+        return query
 
     def get_query(self):
         return RuntimeEvent.query(self.session).order_by(

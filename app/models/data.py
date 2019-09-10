@@ -24,7 +24,7 @@ from sqlalchemy.orm import relationship, column_property
 from sqlalchemy.dialects.mysql import LONGTEXT
 
 from app.models.base import BaseModel
-from app.utils.ss58 import ss58_encode
+from app.utils.ss58 import ss58_encode, ss58_encode_account_index
 from app.settings import LOG_TYPE_AUTHORITIESCHANGE, SUBSTRATE_ADDRESS_TYPE
 
 
@@ -165,10 +165,15 @@ class Event(BaseModel):
     def serialize_formatting_hook(self, obj_dict):
 
         for item in obj_dict['attributes']['attributes']:
-            if item['type'] == 'AccountId' and item['value']:
+            if item['type'] in ['AccountId', 'AuthorityId'] and item['value']:
                 # SS58 format AccountId public keys
                 item['orig_value'] = item['value'].replace('0x', '')
                 item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+
+            elif item['type'] in ['AccountIndex'] and item['value']:
+                # SS58 format Account index
+                item['orig_value'] = item['value']
+                item['value'] = ss58_encode_account_index(item['value'], SUBSTRATE_ADDRESS_TYPE)
 
         return obj_dict
 
@@ -493,10 +498,10 @@ class DemocracyReferendum(BaseModel):
         return item
 
     def serialize_formatting_hook(self, obj_dict):
-
-        for proposal_param in obj_dict['attributes']['proposal'].get('proposal', {}).get('params', []):
-            if proposal_param['type'] == 'Address':
-                self.format_address(proposal_param)
+        if self.proposal:
+            for proposal_param in obj_dict['attributes']['proposal'].get('proposal', {}).get('params', []):
+                if proposal_param['type'] == 'Address':
+                    self.format_address(proposal_param)
 
         return obj_dict
 
