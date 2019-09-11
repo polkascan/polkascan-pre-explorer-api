@@ -165,7 +165,7 @@ class Event(BaseModel):
     def serialize_formatting_hook(self, obj_dict):
 
         for item in obj_dict['attributes']['attributes']:
-            if item['type'] in ['AccountId', 'AuthorityId'] and item['value']:
+            if item['type'] in ['AccountId', 'AuthorityId', 'Address'] and item['value']:
                 # SS58 format AccountId public keys
                 item['orig_value'] = item['value'].replace('0x', '')
                 item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
@@ -231,9 +231,9 @@ class Extrinsic(BaseModel):
             obj_dict['attributes']['address'] = ss58_encode(obj_dict['attributes']['address'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
 
         for item in obj_dict['attributes']['params']:
-            # SS58 format Addresses public keys
 
-            if item['type'] == 'Address' and item['value']:
+            # SS58 format Addresses public keys
+            if item['type'] in ['Address', 'AccountId'] and item['value']:
                 self.format_address(item)
             if item['type'] == 'Box<Proposal>':
                 for proposal_param in item['value'].get('params', []):
