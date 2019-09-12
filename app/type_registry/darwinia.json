@@ -1,0 +1,47 @@
+{
+  "default": {
+    "ValidatorPrefs": "ValidatorPrefsLegacy",
+    "TokenBalance": "u128",
+    "Currency": "u128",
+    "CurrencyOf": "u128",
+    "Auction": {
+      "type": "struct",
+      "type_mapping": [
+         ["seller", "AccountId"],
+         ["startAt", "Moment"],
+         ["duration", "u64"],
+         ["startingPrice", "TokenBalance"],
+         ["endingPrice", "TokenBalance"],
+         ["lastRecord", "TokenBalance"],
+         ["lastBidder", "AccountId"],
+         ["lastBidStartAt", "Moment"]
+      ]
+    },
+    "DepositInfo": {
+      "type": "struct",
+      "type_mapping": [
+         ["month", "Moment"],
+         ["start_at", "Moment"],
+         ["value", "CurrencyOf"],
+         ["unit_interest", "u64"],
+         ["claimed", "bool"]
+      ]
+    },
+    "Deposit": {
+      "type": "struct",
+      "type_mapping": [
+         ["total_deposit", "CurrencyOf"],
+         ["deposit_list", "Vec<DepositInfo>"]
+      ]
+    },
+    "Revenue": {
+      "type": "struct",
+      "type_mapping": [
+         ["team", "TokenBalance"],
+         ["contribution", "TokenBalance"],
+         ["ktoner", "TokenBalance"],
+         ["lottery", "TokenBalance"]
+      ]
+    }
+  }
+}
