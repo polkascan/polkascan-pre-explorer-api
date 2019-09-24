@@ -231,11 +231,18 @@ class Extrinsic(BaseModel):
             obj_dict['attributes']['address'] = ss58_encode(obj_dict['attributes']['address'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
 
         for item in obj_dict['attributes']['params']:
-
             # SS58 format Addresses public keys
             if item['type'] in ['Address', 'AccountId'] and item['value']:
                 self.format_address(item)
-            if item['type'] == 'Box<Proposal>':
+            elif item['type'] in ['Vec<Address>', 'Vec<AccountId>', 'Vec<<Lookup as StaticLookup>::Source>'] and item['value']:
+                for idx, vec_item in enumerate(item['value']):
+                    item['value'][idx] = {
+                        'name': idx,
+                        'type': 'Address',
+                        'value': ss58_encode(vec_item.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
+                        'orig_value': vec_item.replace('0x', '')
+                    }
+            elif item['type'] == 'Box<Proposal>':
                 for proposal_param in item['value'].get('params', []):
                     if proposal_param['type'] == 'Address':
                         self.format_address(proposal_param)
