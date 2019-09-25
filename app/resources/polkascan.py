@@ -316,7 +316,9 @@ class AccountDetailResource(JSONAPIDetailResource):
     cache_expiration_time = 6
 
     def __init__(self):
-        RuntimeConfiguration().update_type_registry(load_type_registry(TYPE_REGISTRY))
+        RuntimeConfiguration().update_type_registry(load_type_registry('default'))
+        if TYPE_REGISTRY != 'default':
+            RuntimeConfiguration().update_type_registry(load_type_registry(TYPE_REGISTRY))
         super(AccountDetailResource, self).__init__()
 
     def get_item(self, item_id):
