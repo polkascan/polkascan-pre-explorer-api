@@ -238,68 +238,46 @@ class NetworkStatisticsResource(JSONAPIResource):
 class BalanceTransferListResource(JSONAPIListResource):
 
     def get_query(self):
-        return Extrinsic.query(self.session).filter(
-            Extrinsic.module_id == 'balances' and Extrinsic.call_id == 'transfer'
-        ).order_by(Extrinsic.block_id.desc())
-
-    def apply_filters(self, query, params):
-        if params.get('filter[address]'):
-
-            if len(params.get('filter[address]')) == 64:
-                account_id = params.get('filter[address]')
-            else:
-                account_id = ss58_decode(params.get('filter[address]'), SUBSTRATE_ADDRESS_TYPE)
-
-            query = query.filter_by(address=account_id)
-
-        if params.get('filter[success]'):
-            query = query.filter_by(success=True)
-
-        if params.get('filter[error]'):
-            query = query.filter_by(error=True)
-
-        return query
+        return Event.query(self.session).filter(
+            Event.module_id == 'balances', Event.event_id == 'Transfer'
+        ).order_by(Event.block_id.desc())
 
     def serialize_item(self, item):
         return {
-                'type': 'balancetransfer',
-                'id': item.extrinsic_hash,
-                'attributes': {
-                    'block_id': item.block_id,
-                    'extrinsic_hash': item.extrinsic_hash,
-                    'sender': ss58_encode(item.address, SUBSTRATE_ADDRESS_TYPE),
-                    'sender_id': item.address,
-                    'destination': ss58_encode(item.params[0]['value'], SUBSTRATE_ADDRESS_TYPE),
-                    'destination_id': item.params[0]['value'].replace('0x', ''),
-                    'value': item.params[1]['value'],
-                    'success': item.success,
-                    'error': item.error,
-                }
+            'type': 'balancetransfer',
+            'id': '{}-{}'.format(item.block_id, item.event_idx),
+            'attributes': {
+                'block_id': item.block_id,
+                'event_idx': '{}-{}'.format(item.block_id, item.event_idx),
+                'sender': ss58_encode(item.attributes[0]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
+                'sender_id': item.attributes[0]['value'].replace('0x', ''),
+                'destination': ss58_encode(item.attributes[1]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
+                'destination_id': item.attributes[1]['value'].replace('0x', ''),
+                'value': item.attributes[2]['value'],
+                'fee': item.attributes[3]['value']
+            }
         }
 
 
 class BalanceTransferDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
-        if item_id[0:2] == '0x':
-            return Extrinsic.query(self.session).filter_by(extrinsic_hash=item_id[2:]).first()
+        return Event.query(self.session).get(item_id.split('-'))
 
     def serialize_item(self, item):
         return {
-                'type': 'balancetransfer',
-                'id': item.extrinsic_hash,
-                'attributes': {
-                    'block_id': item.block_id,
-                    'extrinsic_hash': item.extrinsic_hash,
-                    'extrinsic_idx': item.extrinsic_idx,
-                    'sender': ss58_encode(item.address, SUBSTRATE_ADDRESS_TYPE),
-                    'sender_id': item.address,
-                    'destination': ss58_encode(item.params[0]['value'], SUBSTRATE_ADDRESS_TYPE),
-                    'destination_id': item.params[0]['value'].replace('0x', ''),
-                    'value': item.params[1]['value'],
-                    'success': item.success,
-                    'error': item.error,
-                }
+            'type': 'balancetransfer',
+            'id': '{}-{}'.format(item.block_id, item.event_idx),
+            'attributes': {
+                'block_id': item.block_id,
+                'event_idx': '{}-{}'.format(item.block_id, item.event_idx),
+                'sender': ss58_encode(item.attributes[0]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
+                'sender_id': item.attributes[0]['value'].replace('0x', ''),
+                'destination': ss58_encode(item.attributes[1]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
+                'destination_id': item.attributes[1]['value'].replace('0x', ''),
+                'value': item.attributes[2]['value'],
+                'fee': item.attributes[3]['value']
+            }
         }
 
 
