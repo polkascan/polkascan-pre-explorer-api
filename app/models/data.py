@@ -174,7 +174,14 @@ class Event(BaseModel):
                 # SS58 format Account index
                 item['orig_value'] = item['value']
                 item['value'] = ss58_encode_account_index(item['value'], SUBSTRATE_ADDRESS_TYPE)
-
+            elif item['type'] in ['AuthorityList'] and item['value']:
+                for idx, vec_item in enumerate(item['value']):
+                    item['value'][idx]['AuthorityId'] = {
+                        'name': 'AuthorityId',
+                        'type': 'Address',
+                        'value': ss58_encode(vec_item['AuthorityId'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
+                        'orig_value': vec_item['AuthorityId'].replace('0x', '')
+                    }
         return obj_dict
 
 
