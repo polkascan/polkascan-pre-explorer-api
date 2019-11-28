@@ -330,7 +330,8 @@ class AccountDetailResource(JSONAPIDetailResource):
             function='FreeBalance',
             params=item.id,
             return_scale_type=storage_call.type_value,
-            hasher=storage_call.type_hasher
+            hasher=storage_call.type_hasher,
+            metadata_version=SUBSTRATE_METADATA_VERSION
         )
 
         storage_call = RuntimeStorage.query(self.session).filter_by(
@@ -344,7 +345,8 @@ class AccountDetailResource(JSONAPIDetailResource):
             function='ReservedBalance',
             params=item.id,
             return_scale_type=storage_call.type_value,
-            hasher=storage_call.type_hasher
+            hasher=storage_call.type_hasher,
+            metadata_version=SUBSTRATE_METADATA_VERSION
         )
 
         storage_call = RuntimeStorage.query(self.session).filter_by(
@@ -358,7 +360,8 @@ class AccountDetailResource(JSONAPIDetailResource):
             function='AccountNonce',
             params=item.id,
             return_scale_type=storage_call.type_value,
-            hasher=storage_call.type_hasher
+            hasher=storage_call.type_hasher,
+            metadata_version=SUBSTRATE_METADATA_VERSION
         )
 
         return data
