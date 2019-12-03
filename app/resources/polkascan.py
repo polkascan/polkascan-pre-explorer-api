@@ -505,6 +505,8 @@ class DemocracyReferendumListResource(JSONAPIListResource):
 
 class DemocracyReferendumDetailResource(JSONAPIDetailResource):
 
+    cache_expiration_time = 60
+
     def get_relationships(self, include_list, item):
         relationships = {}
 
