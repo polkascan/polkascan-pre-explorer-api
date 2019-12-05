@@ -32,6 +32,21 @@
     "AuthorityList": "VecNextAuthority",
     "BalanceUpload": "(AccountId, u64)",
     "CollatorId": "H256",
+    "DispatchClass": {
+      "type": "enum",
+      "value_list": [
+        "Normal",
+        "Operational"
+      ]
+    },
+    "DispatchInfo": {
+      "type": "struct",
+      "type_mapping": [
+         ["weight", "Weight"],
+         ["class", "DispatchClass"],
+         ["paysFee", "bool"]
+      ]
+    },
     "EgressQueueRoot": "(ParaId, Hash)",
     "EventIndex": "u32",
     "LeasePeriod": "BlockNumber",
@@ -56,6 +71,15 @@
          ["scheduling", "ParaScheduling"]
       ]
     },
+    "(ReferendumInfo<BlockNumber, Hash>)": {
+      "type": "struct",
+      "type_mapping": [
+         ["end", "BlockNumber"],
+         ["proposalHash", "Hash"],
+         ["threshold", "VoteThreshold"],
+         ["delay", "BlockNumber"]
+      ]
+    },
     "ReportIdOf": "Hash",
     "SubId": "u32",
     "Weight": "u32",
@@ -64,6 +88,14 @@
     "WinningData": "Vec<WinningDataEntry>",
     "Index": "U32",
     "Kind": "[u8; 16]",
+    "Nominations": {
+      "type": "struct",
+      "type_mapping": [
+         ["targets", "Vec<AccountId>"],
+         ["submittedIn", "EraIndex"],
+         ["suppressed", "bool"]
+      ]
+    },
     "OpaqueTimeSlot": "Bytes",
     "Box<<T as Trait<I>>::Proposal>": "BoxProposal",
     "<AuthorityId as RuntimeAppPublic>::Signature": "AuthoritySignature",
@@ -113,6 +145,41 @@
       ]
     },
     "DigestOf": "Digest",
+    "SpanIndex": "u32",
+    "SlashingSpans": {
+      "type": "struct",
+      "type_mapping": [
+         ["spanIndex", "SpanIndex"],
+         ["lastStart", "EraIndex"],
+         ["prior", "Vec<EraIndex>"]
+      ]
+    },
+    "slashing::SlashingSpans": "SlashingSpans",
+    "SpanRecord": {
+      "type": "struct",
+      "type_mapping": [
+         ["slashed", "Balance"],
+         ["paidOut", "Balance"]
+      ]
+    },
+    "slashing::SpanRecord<BalanceOf>": "SpanRecord",
+    "UnappliedSlashOther": {
+      "type": "struct",
+      "type_mapping": [
+         ["account", "AccountId"],
+         ["amount", "Balance"]
+      ]
+    },
+    "UnappliedSlash": {
+      "type": "struct",
+      "type_mapping": [
+         ["validator", "AccountId"],
+         ["own", "AccountId"],
+         ["others", "Vec<UnappliedSlashOther>"],
+         ["reporters", "Vec<AccountId>"],
+         ["payout", "Balance"]
+      ]
+    },
     "Keys": "SessionKeysSubstrate",
     "Header": {
       "type": "struct",
