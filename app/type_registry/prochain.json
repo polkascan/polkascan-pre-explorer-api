@@ -1,0 +1,100 @@
+{
+  "default": {
+    "BlockNumber": "U32",
+    "ExternalAddress":{
+      "type":"struct",
+      "type_mapping":[
+        ["btc","Vec<u8>"],
+        ["eth","Vec<u8>"],
+        ["eos","Vec<u8>"]
+      ]
+    },
+    "EventLogSource":{
+        "type":"struct",
+        "type_mapping":[
+          ["event_name","Vec<u8>"],
+          ["event_url","Vec<u8>"]
+        ]
+    },
+     "LockedRecords":{
+       "type":"struct",
+       "type_mapping":[
+      ["locked_time", "Moment"],
+      ["locked_period", "Moment"],
+      ["locked_funds", "Balance"],
+      ["rewards_ratio", "u64"],
+      ["max_quota", "u64"]
+    ]},
+    "UnlockRecords": {
+    "type":"struct",
+       "type_mapping":
+    [
+      ["unlock_time", "Moment"],
+      ["unlock_funds", "Balance"]
+    ]
+  },
+    "MetadataRecord" : {
+      "type":"struct",
+      "type_mapping":
+      [
+      ["address", "AccountId"],
+      ["superior", "Hash"],
+      ["creator", "AccountId"],
+      ["did_ele", "Vec<u8>"],
+      ["locked_records", "Option<LockedRecords<Balance, Moment>>"],
+      ["unlock_records", "Option<UnlockRecords<Balance, Moment>>"],
+      ["social_account", "Option<Hash>"],
+      ["subordinate_count", "u64"],
+      ["group_name","Vec<u8>"],
+      ["external_address", "ExternalAddress"]
+    ]
+  },
+    "Value": "u32",
+    "BTCValue" :{
+      "type":"struct",
+      "type_mapping":[
+        ["price","u32"],
+        ["block","u32"]
+      ]
+    },
+    "AdsMetadata":{
+      "type":"struct",
+      "type_mapping":[
+        ["advertiser", "Vec<u8>"],
+        ["topic", "Vec<u8>"],
+        ["total_amount", "Balance"],
+        ["surplus", "Balance"],
+        ["gas_fee_used", "Balance"],
+        ["single_click_fee", "Balance"],
+        ["create_time", "Moment"],
+        ["period", "Moment"]
+      ]
+    },
+
+    "HTLC":{
+      "type":"struct",
+      "type_mapping":[
+        ["block_number","BlockNumber"],
+        ["out_amount","Balance"],
+        ["expire_height","BlockNumber"],
+        ["random_number_hash","Hash"],
+        ["swap_id","Hash"],
+        ["timestamp","Moment"],
+        ["sender_addr","Vec<u8>"],
+        ["sender_chain_type","u64"],
+        ["receiver_addr","AccountId"],
+        ["receiver_chain_type","u64"],
+        ["recipient_addr","Vec<u8>"]
+      ]
+    },
+    "States" :{
+      "type":"enum",
+      "value_list":[
+        "INVALID",
+        "OPEN",
+        "COMPLETED",
+        "EXPIRED"
+      ]
+    }
+  }
+}
