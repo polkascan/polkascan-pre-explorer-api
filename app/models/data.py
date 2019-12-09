@@ -182,6 +182,23 @@ class Event(BaseModel):
                         'value': ss58_encode(vec_item['AuthorityId'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
                         'orig_value': vec_item['AuthorityId'].replace('0x', '')
                     }
+            elif item['type'] == 'Vec<IdentificationTuple>':
+                for idx, vec_item in enumerate(item['value']):
+                    item['value'][idx]['validatorId'] = {
+                        'name': 'validatorId',
+                        'type': 'Address',
+                        'value': ss58_encode(vec_item['validatorId'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
+                        'orig_value': vec_item['validatorId'].replace('0x', '')
+                    }
+
+                    for other_idx, other_item in enumerate(vec_item['exposure']['others']):
+                        item['value'][idx]['exposure']['others'][other_idx]['who'] = {
+                            'name': 'validatorId',
+                            'type': 'Address',
+                            'value': ss58_encode(other_item['who'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
+                            'orig_value': other_item['who'].replace('0x', '')
+                        }
+
         return obj_dict
 
 
