@@ -492,9 +492,10 @@ class DemocracyProposal(BaseModel):
 
     def serialize_formatting_hook(self, obj_dict):
 
-        for proposal_param in obj_dict['attributes']['proposal'].get('params', []):
-            if proposal_param['type'] == 'Address':
-                self.format_address(proposal_param)
+        if obj_dict['attributes'].get('proposal'):
+            for proposal_param in obj_dict['attributes']['proposal'].get('params', []):
+                if proposal_param['type'] == 'Address':
+                    self.format_address(proposal_param)
 
         return obj_dict
 
