@@ -1,5 +1,6 @@
 {
   "default": {
+    "Keys": "SessionKeysPolkadot",
     "BlockNumber": "U32",
     "ExternalAddress":{
       "type":"struct",
@@ -45,7 +46,7 @@
       ["unlock_records", "Option<UnlockRecords<Balance, Moment>>"],
       ["social_account", "Option<Hash>"],
       ["subordinate_count", "u64"],
-      ["group_name","Vec<u8>"],
+      ["group_name","Option<Vec<u8>>"],
       ["external_address", "ExternalAddress"]
     ]
   },
@@ -53,8 +54,8 @@
     "BTCValue" :{
       "type":"struct",
       "type_mapping":[
-        ["price","u32"],
-        ["block","u32"]
+        ["block_number","BlockNumber"],
+        ["price","Value"]
       ]
     },
     "AdsMetadata":{
@@ -70,7 +71,6 @@
         ["period", "Moment"]
       ]
     },
-
     "HTLC":{
       "type":"struct",
       "type_mapping":[
@@ -87,13 +87,46 @@
         ["recipient_addr","Vec<u8>"]
       ]
     },
-    "States" :{
+    "EventHTLC":{
+      "type":"struct",
+      "type_mapping":[
+        ["eth_contract_addr","Vec<u8>"],
+        ["htlc_block_number","BlockNumber"],
+        ["event_block_number","BlockNumber"],
+        ["expire_height","u32"],
+        ["random_number_hash","Vec<u8>"],
+        ["swap_id","Hash"],
+        ["event_timestamp","u64"],
+        ["htlc_timestamp","u64"],
+        ["sender_addr","Vec<u8>"],
+        ["sender_chain_type","HTLCChain"],
+        ["receiver_addr","Vec<u8>"],
+        ["receiver_chain_type","HTLCChain"],
+        ["recipient_addr","Vec<u8>"],
+        ["out_amount","Balance"]
+      ]
+    },
+    "HTLCStates" :{
       "type":"enum",
       "value_list":[
         "INVALID",
         "OPEN",
         "COMPLETED",
         "EXPIRED"
+      ]
+    },
+    "HTLCChain":{
+      "type":"enum",
+      "value_list":[
+        "ETHMain",
+        "PRA"
+      ]
+    },
+    "ChainTypes":{
+      "type":"enum",
+      "value_list":[
+        "ETH",
+        "PRA"
       ]
     }
   }

@@ -103,3 +103,4 @@ data/
 # mypy
 .mypy_cache/
 .idea
+.history/
