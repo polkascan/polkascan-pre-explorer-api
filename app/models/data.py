@@ -586,6 +586,44 @@ class DemocracyVoteAudit(BaseModel):
     data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
 
 
+class CouncilMotion(BaseModel):
+    __tablename__ = 'data_council_motion'
+
+    proposal_id = sa.Column(sa.Integer(), primary_key=True)
+    motion_hash = sa.Column(sa.String(64), nullable=False, index=True)
+    account_id = sa.Column(sa.String(64), nullable=True)
+    proposal_hash = sa.Column(sa.String(64), nullable=True)
+    proposal = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
+    member_threshold = sa.Column(sa.Integer(), nullable=False)
+    yes_votes_count = sa.Column(sa.Integer(), nullable=False)
+    no_votes_count = sa.Column(sa.Integer(), nullable=False)
+    approved = sa.Column(sa.Boolean(), nullable=True)
+    executed = sa.Column(sa.Boolean(), nullable=True)
+    created_at_block = sa.Column(sa.Integer(), nullable=False)
+    updated_at_block = sa.Column(sa.Integer(), nullable=False)
+    status = sa.Column(sa.String(64))
+
+    def serialize_id(self):
+        return self.proposal_id
+
+
+class CouncilVote(BaseModel):
+    __tablename__ = 'data_council_vote'
+
+    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
+    proposal_id = sa.Column(sa.Integer(), nullable=True, index=True)
+    motion_hash = sa.Column(sa.String(64), index=True)
+    account_id = sa.Column(sa.String(64), index=True)
+    vote = sa.Column(sa.Boolean())
+    created_at_block = sa.Column(sa.Integer(), nullable=False)
+    updated_at_block = sa.Column(sa.Integer(), nullable=False)
+
+    def serialize_formatting_hook(self, obj_dict):
+        obj_dict['attributes']['address'] = ss58_encode(self.account_id.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+
+        return obj_dict
+
+
 class Contract(BaseModel):
     __tablename__ = 'data_contract'
 

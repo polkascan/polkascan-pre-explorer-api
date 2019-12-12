@@ -25,7 +25,7 @@ from sqlalchemy import func
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
     BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant, SessionNominator, \
-    DemocracyVote
+    DemocracyVote, CouncilMotion, CouncilVote
 from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY
 from app.type_registry import load_type_registry
@@ -519,6 +519,36 @@ class DemocracyReferendumDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
         return DemocracyReferendum.query(self.session).get(item_id)
+
+
+class CouncilMotionListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return CouncilMotion.query(self.session).order_by(
+            CouncilMotion.proposal_id.desc()
+        )
+
+    def serialize_item(self, item):
+        # Exclude large proposals from list view
+        return item.serialize(exclude=['proposal'])
+
+
+class CouncilMotionDetailResource(JSONAPIDetailResource):
+
+    cache_expiration_time = 60
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'votes' in include_list:
+            relationships['votes'] = CouncilVote.query(self.session).filter_by(
+                proposal_id=item.proposal_id
+            ).order_by(CouncilVote.id.desc())
+
+        return relationships
+
+    def get_item(self, item_id):
+        return CouncilMotion.query(self.session).get(item_id)
 
 
 class ContractListResource(JSONAPIListResource):
