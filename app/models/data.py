@@ -606,6 +606,11 @@ class CouncilMotion(BaseModel):
     def serialize_id(self):
         return self.proposal_id
 
+    def serialize_formatting_hook(self, obj_dict):
+        obj_dict['attributes']['address'] = ss58_encode(self.account_id.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+
+        return obj_dict
+
 
 class CouncilVote(BaseModel):
     __tablename__ = 'data_council_vote'

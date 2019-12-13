@@ -135,6 +135,19 @@ class ExtrinsicDetailResource(JSONAPIDetailResource):
 
         return extrinsic
 
+    def serialize_item(self, item):
+        data = item.serialize()
+
+        runtime_call = RuntimeCall.query(self.session).filter_by(
+            module_id=item.module_id,
+            call_id=item.call_id,
+            spec_version=item.spec_version_id
+        ).first()
+
+        data['attributes']['documentation'] = runtime_call.documentation
+
+        return data
+
 
 class EventsListResource(JSONAPIListResource):
 
@@ -163,6 +176,19 @@ class EventDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
         return Event.query(self.session).get(item_id.split('-'))
+
+    def serialize_item(self, item):
+        data = item.serialize()
+
+        runtime_event = RuntimeEvent.query(self.session).filter_by(
+            module_id=item.module_id,
+            event_id=item.event_id,
+            spec_version=item.spec_version_id
+        ).first()
+
+        data['attributes']['documentation'] = runtime_event.documentation
+
+        return data
 
 
 class LogListResource(JSONAPIListResource):
