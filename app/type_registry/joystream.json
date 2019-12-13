@@ -27,6 +27,7 @@
          ["joined_at", "BlockNumber"]
       ]
     },
+    "ContentId": "H256",
     "DataObjectStorageRelationship": {
       "type": "struct",
       "type_mapping": [
