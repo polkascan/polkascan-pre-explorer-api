@@ -103,7 +103,8 @@
         ["receiver_addr","Vec<u8>"],
         ["receiver_chain_type","HTLCChain"],
         ["recipient_addr","Vec<u8>"],
-        ["out_amount","Balance"]
+        ["out_amount","Balance"],
+        ["event_type","HTLCType"]
       ]
     },
     "HTLCStates" :{
@@ -122,11 +123,12 @@
         "PRA"
       ]
     },
-    "ChainTypes":{
+    "HTLCType":{
       "type":"enum",
       "value_list":[
-        "ETH",
-        "PRA"
+        "HTLC",
+        "Claimed",
+        "Refunded"
       ]
     }
   }
