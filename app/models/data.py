@@ -758,3 +758,24 @@ class RuntimeType(BaseModel):
     spec_version = sa.Column(sa.Integer(), nullable=False)
     type_string = sa.Column(sa.String(255))
     decoder_class = sa.Column(sa.String(255), nullable=True)
+
+class Transfer(BaseModel):
+    __tablename__ = 'data_transfer'
+
+    block_id = sa.Column(sa.Integer(), primary_key=True)
+    block = relationship(Block, foreign_keys=[block_id], primaryjoin=block_id == Block.id)
+
+    event_idx = sa.Column(sa.Integer(), primary_key=True)
+
+    extrinsic_idx = sa.Column(sa.Integer())
+    from_did = sa.Column(sa.String(44),index = True)
+    from_account_id = sa.Column(sa.String(64),index=True)
+    to_did = sa.Column(sa.String(44),index = True)
+    to_account_id = sa.Column(sa.String(64),index=True)
+    balance = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
+    fee = sa.Column(sa.Numeric(precision=18, scale=0), nullable=False)
+    datetime = sa.Column(sa.DateTime(timezone=True))
+
+
+    def serialize_id(self):
+        return '{}-{}'.format(self.block_id, self.event_idx)

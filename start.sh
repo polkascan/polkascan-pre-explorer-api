@@ -7,7 +7,7 @@ fi
 echo "==========================="
 echo "Environment: $ENVIRONMENT"
 echo "==========================="
-
+export PYTHONPATH=$PYTHONPATH:./py-substrate-interface/:./py-scale-codec/
 echo "Running gunicorn..."
 
 if [ "$ENVIRONMENT" = "dev" ]; then
