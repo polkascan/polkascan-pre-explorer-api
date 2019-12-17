@@ -779,3 +779,15 @@ class Transfer(BaseModel):
 
     def serialize_id(self):
         return '{}-{}'.format(self.block_id, self.event_idx)
+
+class Did(BaseModel):
+    __tablename__ = 'data_did'
+
+    did = sa.Column(sa.String(50), primary_key=True)
+    address = sa.Column(sa.String(48),index=True)
+    superior = sa.Column(sa.String(66),index=True)
+    did_hash = sa.Column(sa.String(66),index=True)
+    creator = sa.Column(sa.String(50))
+    social_account_hash = sa.Column(sa.String(66),index =True)
+    def serialize_id(self):
+        return self.did

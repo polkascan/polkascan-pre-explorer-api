@@ -25,7 +25,7 @@ from sqlalchemy import or_
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
     BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant, SessionNominator, \
-    DemocracyVote, Transfer
+    DemocracyVote, Transfer, Did
 from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource,JSONAPIListResource2
 from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY
 from app.type_registry import load_type_registry
@@ -319,6 +319,16 @@ def decimal_default_proc(obj):
     if isinstance(obj, decimal.Decimal):
         return float(obj)
     raise TypeError
+
+class DidListResource(JSONAPIListResource):
+    def get_query(self):
+        return Did.query(self.session)
+    
+class DidDetailResource(JSONAPIDetailResource):
+    def get_item(self, item_id):
+        print(item_id)
+        return Did.query(self.session).get(item_id).first()
+        
 
 class AccountResource(JSONAPIListResource):
 
