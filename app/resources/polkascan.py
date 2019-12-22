@@ -25,7 +25,7 @@ from sqlalchemy import func
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
     BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant, SessionNominator, \
-    DemocracyVote, CouncilMotion, CouncilVote
+    DemocracyVote, CouncilMotion, CouncilVote, TechCommProposal, TechCommProposalVote, TreasuryProposal
 from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY
 from app.type_registry import load_type_registry
@@ -575,6 +575,52 @@ class CouncilMotionDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
         return CouncilMotion.query(self.session).get(item_id)
+
+
+class TechCommProposalListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return TechCommProposal.query(self.session).order_by(
+            TechCommProposal.proposal_id.desc()
+        )
+
+    def serialize_item(self, item):
+        # Exclude large proposals from list view
+        return item.serialize(exclude=['proposal'])
+
+
+class TechCommProposalDetailResource(JSONAPIDetailResource):
+
+    cache_expiration_time = 60
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'votes' in include_list:
+            relationships['votes'] = TechCommProposalVote.query(self.session).filter_by(
+                proposal_id=item.proposal_id
+            ).order_by(TechCommProposalVote.id.desc())
+
+        return relationships
+
+    def get_item(self, item_id):
+        return TechCommProposal.query(self.session).get(item_id)
+
+
+class TreasuryProposalListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return TreasuryProposal.query(self.session).order_by(
+            TreasuryProposal.proposal_id.desc()
+        )
+
+
+class TreasuryProposalDetailResource(JSONAPIDetailResource):
+
+    cache_expiration_time = 60
+
+    def get_item(self, item_id):
+        return TreasuryProposal.query(self.session).get(item_id)
 
 
 class ContractListResource(JSONAPIListResource):
