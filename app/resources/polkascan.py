@@ -111,8 +111,8 @@ class ExtrinsicListResource(JSONAPIListResource):
 
         if params.get('filter[address]'):
 
-            if len(params.get('filter[address]')) == 64:
-                account_id = params.get('filter[address]')
+            if params.get('filter[address]')[0:2] == '0x':
+                account_id = params.get('filter[address]')[2:]
             else:
                 account_id = ss58_decode(params.get('filter[address]'), SUBSTRATE_ADDRESS_TYPE)
 
@@ -326,7 +326,10 @@ class AccountDetailResource(JSONAPIDetailResource):
         super(AccountDetailResource, self).__init__()
 
     def get_item(self, item_id):
-        return Account.query(self.session).filter_by(address=item_id).first()
+        if item_id[0:2] == '0x':
+            return Account.query(self.session).filter_by(id=item_id[2:]).first()
+        else:
+            return Account.query(self.session).filter_by(address=item_id).first()
 
     def get_relationships(self, include_list, item):
         relationships = {}
