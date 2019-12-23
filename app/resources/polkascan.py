@@ -528,6 +528,10 @@ class DemocracyReferendumListResource(JSONAPIListResource):
             DemocracyReferendum.id.desc()
         )
 
+    def serialize_item(self, item):
+        # Exclude large proposals from list view
+        return item.serialize(exclude=['proposal'])
+
 
 class DemocracyReferendumDetailResource(JSONAPIDetailResource):
 
