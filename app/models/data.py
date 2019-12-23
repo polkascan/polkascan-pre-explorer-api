@@ -530,7 +530,7 @@ class DemocracyReferendum(BaseModel):
         return item
 
     def serialize_formatting_hook(self, obj_dict):
-        if self.proposal:
+        if obj_dict['attributes'].get('proposal'):
             for proposal_param in obj_dict['attributes']['proposal'].get('proposal', {}).get('params', []):
                 if proposal_param['type'] == 'Address':
                     self.format_address(proposal_param)
