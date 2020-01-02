@@ -25,8 +25,8 @@ from sqlalchemy import or_
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
     BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant, SessionNominator, \
-    DemocracyVote, Transfer, Did
-from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource,JSONAPIListResource2
+    DemocracyVote, CouncilMotion, CouncilVote, TechCommProposal, TechCommProposalVote, TreasuryProposal, Transfer, Did
+from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY
 from app.type_registry import load_type_registry
 from app.utils.ss58 import ss58_decode, ss58_encode
@@ -114,8 +114,8 @@ class ExtrinsicListResource(JSONAPIListResource):
 
         if params.get('filter[address]'):
 
-            if len(params.get('filter[address]')) == 64:
-                account_id = params.get('filter[address]')
+            if params.get('filter[address]')[0:2] == '0x':
+                account_id = params.get('filter[address]')[2:]
             else:
                 account_id = ss58_decode(params.get(
                     'filter[address]'), SUBSTRATE_ADDRESS_TYPE)
@@ -139,6 +139,19 @@ class ExtrinsicDetailResource(JSONAPIDetailResource):
             extrinsic = Extrinsic.query(self.session).get(item_id.split('-'))
 
         return extrinsic
+
+    def serialize_item(self, item):
+        data = item.serialize()
+
+        runtime_call = RuntimeCall.query(self.session).filter_by(
+            module_id=item.module_id,
+            call_id=item.call_id,
+            spec_version=item.spec_version_id
+        ).first()
+
+        data['attributes']['documentation'] = runtime_call.documentation
+
+        return data
 
 
 class EventsListResource(JSONAPIListResource):
@@ -168,6 +181,19 @@ class EventDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
         return Event.query(self.session).get(item_id.split('-'))
+
+    def serialize_item(self, item):
+        data = item.serialize()
+
+        runtime_event = RuntimeEvent.query(self.session).filter_by(
+            module_id=item.module_id,
+            event_id=item.event_id,
+            spec_version=item.spec_version_id
+        ).first()
+
+        data['attributes']['documentation'] = runtime_event.documentation
+
+        return data
 
 
 class LogListResource(JSONAPIListResource):
@@ -349,7 +375,10 @@ class AccountDetailResource(JSONAPIDetailResource):
         super(AccountDetailResource, self).__init__()
 
     def get_item(self, item_id):
-        return Account.query(self.session).filter_by(address=item_id).first()
+        if item_id[0:2] == '0x':
+            return Account.query(self.session).filter_by(id=item_id[2:]).first()
+        else:
+            return Account.query(self.session).filter_by(address=item_id).first()
 
     def get_relationships(self, include_list, item):
         relationships = {}
@@ -554,6 +583,10 @@ class DemocracyReferendumListResource(JSONAPIListResource):
             DemocracyReferendum.id.desc()
         )
 
+    def serialize_item(self, item):
+        # Exclude large proposals from list view
+        return item.serialize(exclude=['proposal'])
+
 
 class DemocracyReferendumDetailResource(JSONAPIDetailResource):
 
@@ -571,6 +604,82 @@ class DemocracyReferendumDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
         return DemocracyReferendum.query(self.session).get(item_id)
+
+
+class CouncilMotionListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return CouncilMotion.query(self.session).order_by(
+            CouncilMotion.proposal_id.desc()
+        )
+
+    def serialize_item(self, item):
+        # Exclude large proposals from list view
+        return item.serialize(exclude=['proposal'])
+
+
+class CouncilMotionDetailResource(JSONAPIDetailResource):
+
+    cache_expiration_time = 60
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'votes' in include_list:
+            relationships['votes'] = CouncilVote.query(self.session).filter_by(
+                proposal_id=item.proposal_id
+            ).order_by(CouncilVote.id.desc())
+
+        return relationships
+
+    def get_item(self, item_id):
+        return CouncilMotion.query(self.session).get(item_id)
+
+
+class TechCommProposalListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return TechCommProposal.query(self.session).order_by(
+            TechCommProposal.proposal_id.desc()
+        )
+
+    def serialize_item(self, item):
+        # Exclude large proposals from list view
+        return item.serialize(exclude=['proposal'])
+
+
+class TechCommProposalDetailResource(JSONAPIDetailResource):
+
+    cache_expiration_time = 60
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'votes' in include_list:
+            relationships['votes'] = TechCommProposalVote.query(self.session).filter_by(
+                proposal_id=item.proposal_id
+            ).order_by(TechCommProposalVote.id.desc())
+
+        return relationships
+
+    def get_item(self, item_id):
+        return TechCommProposal.query(self.session).get(item_id)
+
+
+class TreasuryProposalListResource(JSONAPIListResource):
+
+    def get_query(self):
+        return TreasuryProposal.query(self.session).order_by(
+            TreasuryProposal.proposal_id.desc()
+        )
+
+
+class TreasuryProposalDetailResource(JSONAPIDetailResource):
+
+    cache_expiration_time = 60
+
+    def get_item(self, item_id):
+        return TreasuryProposal.query(self.session).get(item_id)
 
 
 class ContractListResource(JSONAPIListResource):

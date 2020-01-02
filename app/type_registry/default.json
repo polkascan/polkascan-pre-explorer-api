@@ -32,6 +32,25 @@
     "AuthorityList": "VecNextAuthority",
     "BalanceUpload": "(AccountId, u64)",
     "CollatorId": "H256",
+    "ContractInfo": {
+      "type": "enum",
+      "value_list": [
+        "Alive",
+        "Tombstone"
+      ]
+    },
+    "TrieId": "Vec<u8>",
+    "RawAliveContractInfo": {
+      "type": "struct",
+      "type_mapping": [
+         ["trie_id", "TrieId"],
+         ["storage_size", "u32"],
+         ["code_hash", "CodeHash"],
+         ["rent_allowance", "Balance"],
+         ["deduct_block", "BlockNumber"],
+         ["last_write", "Option<BlockNumber>"]
+      ]
+    },
     "DispatchClass": {
       "type": "enum",
       "value_list": [
@@ -49,6 +68,46 @@
     },
     "EgressQueueRoot": "(ParaId, Hash)",
     "EventIndex": "u32",
+    "Gas": "u64",
+    "IdentityFields": {
+      "type": "enum",
+      "value_list": [
+        "Display",
+        "Legal",
+        "Web",
+        "Riot",
+        "Email",
+        "PgpFingerprint",
+        "Image"
+      ]
+    },
+    "IdentityInfoAdditional": "(Data, Data)",
+    "IdentityInfo": {
+      "type": "struct",
+      "type_mapping": [
+         ["additional", "Vec<IdentityInfoAdditional>"],
+         ["display", "Data"],
+         ["legal", "Data"],
+         ["web", "Data"],
+         ["riot", "Data"],
+         ["email", "Data"],
+         ["pgpFingerprint", "Option<H160>"],
+         ["image", "Data"]
+      ]
+    },
+    "Judgement": {
+      "type": "enum",
+      "type_mapping": [
+        ["Unknown", "Null"],
+        ["FeePaid", "Balance"],
+        ["Reasonable", "Null"],
+        ["KnownGood", "Null"],
+        ["OutOfDate", "Null"],
+        ["LowQuality", "Null"],
+        ["Erroneous", "Null"]
+      ]
+    },
+    "Judgement<BalanceOf>": "Judgement",
     "LeasePeriod": "BlockNumber",
     "LeasePeriodOf": "LeasePeriod",
     "MaybeVrf": "[u8; 32]",
@@ -71,7 +130,50 @@
          ["scheduling", "ParaScheduling"]
       ]
     },
-    "(ReferendumInfo<BlockNumber, Hash>)": {
+    "SlotNumber": "u64",
+    "VrfData": "[u8; 32]",
+    "VrfProof": "[u8; 64]",
+    "RawAuraPreDigest": {
+      "type": "struct",
+      "type_mapping": [
+         ["slotNumber", "SlotNumber"]
+      ]
+    },
+    "RawBabePreDigest": {
+      "type": "enum",
+      "type_mapping": [
+        ["value", "Null"],
+        ["value", "RawBabePreDigestPrimary"],
+        ["value", "RawBabePreDigestSecondary"]
+      ]
+    },
+    "RawBabePreDigestPrimary": {
+      "type": "struct",
+      "type_mapping": [
+         ["authorityIndex", "u32"],
+         ["slotNumber", "SlotNumber"],
+         ["vrfOutput", "VrfData"],
+         ["vrfProof", "VrfProof"]
+      ]
+    },
+    "RawBabePreDigestSecondary": {
+      "type": "struct",
+      "type_mapping": [
+         ["authorityIndex", "u32"],
+         ["slotNumber", "SlotNumber"]
+      ]
+    },
+    "ReferendumInfo<BlockNumber, Proposal>": {
+      "type": "struct",
+      "type_mapping": [
+         ["end", "BlockNumber"],
+         ["proposal", "Proposal"],
+         ["threshold", "VoteThreshold"],
+         ["delay", "BlockNumber"]
+      ]
+    },
+    "(ReferendumInfo<BlockNumber, Proposal>)": "ReferendumInfo<BlockNumber, Proposal>",
+    "ReferendumInfo<BlockNumber, Hash>": {
       "type": "struct",
       "type_mapping": [
          ["end", "BlockNumber"],
@@ -80,12 +182,64 @@
          ["delay", "BlockNumber"]
       ]
     },
+    "(ReferendumInfo<BlockNumber, Hash>)": "ReferendumInfo<BlockNumber, Hash>",
+    "RegistrarIndex": "u32",
+    "RegistrarInfo": {
+      "type": "struct",
+      "type_mapping": [
+         ["account", "AccountId"],
+         ["fee", "Balance"],
+         ["fields", "IdentityFields"]
+      ]
+    },
+    "Registration": {
+      "type": "struct",
+      "type_mapping": [
+         ["judgements", "Vec<RegistrationJudgement>"],
+         ["deposit", "Balance"],
+         ["info", "IdentityInfo"]
+      ]
+    },
+    "RegistrationJudgement": "(RegistrarIndex, Judgement)",
     "ReportIdOf": "Hash",
+    "Schedule": {
+      "type": "struct",
+      "type_mapping": [
+         ["version", "u32"],
+         ["put_code_per_byte_cost", "Gas"],
+         ["grow_mem_cost", "Gas"],
+         ["regular_op_cost", "Gas"],
+         ["return_data_per_byte_cost", "Gas"],
+         ["event_data_per_byte_cost", "Gas"],
+         ["event_per_topic_cost", "Gas"],
+         ["event_base_cost", "Gas"],
+         ["call_base_cost", "Gas"],
+         ["instantiate_base_cost", "Gas"],
+         ["sandbox_data_read_cost", "Gas"],
+         ["sandbox_data_write_cost", "Gas"],
+         ["max_event_topics", "u32"],
+         ["max_stack_height", "u32"],
+         ["max_memory_pages", "u32"],
+         ["max_table_size", "u32"],
+         ["enable_println", "bool"],
+         ["max_subject_len", "u32"]
+      ]
+    },
     "SubId": "u32",
     "Weight": "u32",
     "WeightMultiplier": "u64",
     "WinningDataEntry": "(AccountId, ParaIdOf, BalanceOf)",
     "WinningData": "Vec<WinningDataEntry>",
+    "WithdrawReasons": {
+      "type": "set",
+      "value_list": {
+        "TransactionPayment": 1,
+        "Transfer": 2,
+        "Reserve": 4,
+        "Fee": 8,
+        "Tip": 16
+      }
+    },
     "Index": "U32",
     "Kind": "[u8; 16]",
     "Nominations": {
