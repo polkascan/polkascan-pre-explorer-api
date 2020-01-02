@@ -26,7 +26,7 @@ from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, 
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
     BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant, SessionNominator, \
     DemocracyVote, CouncilMotion, CouncilVote, TechCommProposal, TechCommProposalVote, TreasuryProposal, Transfer, Did
-from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
+from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIListResource2,JSONAPIDetailResource
 from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY
 from app.type_registry import load_type_registry
 from app.utils.ss58 import ss58_decode, ss58_encode
