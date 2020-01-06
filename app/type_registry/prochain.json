@@ -1,7 +1,9 @@
 {
   "default": {
+    "Did":"Vec<u8>",
     "Keys": "SessionKeysPolkadot",
     "BlockNumber": "U32",
+    "Index": "U64",
     "ExternalAddress":{
       "type":"struct",
       "type_mapping":[
@@ -26,7 +28,7 @@
       ["rewards_ratio", "u64"],
       ["max_quota", "u64"]
     ]},
-    "UnlockRecords": {
+    "UnlockedRecords": {
     "type":"struct",
        "type_mapping":
     [
@@ -41,9 +43,9 @@
       ["address", "AccountId"],
       ["superior", "Hash"],
       ["creator", "AccountId"],
-      ["did_ele", "Vec<u8>"],
+      ["did", "Did"],
       ["locked_records", "Option<LockedRecords<Balance, Moment>>"],
-      ["unlock_records", "Option<UnlockRecords<Balance, Moment>>"],
+      ["unlock_records", "Option<UnlockedRecords<Balance, Moment>>"],
       ["social_account", "Option<Hash>"],
       ["subordinate_count", "u64"],
       ["group_name","Option<Vec<u8>>"],
@@ -69,22 +71,6 @@
         ["single_click_fee", "Balance"],
         ["create_time", "Moment"],
         ["period", "Moment"]
-      ]
-    },
-    "HTLC":{
-      "type":"struct",
-      "type_mapping":[
-        ["block_number","BlockNumber"],
-        ["out_amount","Balance"],
-        ["expire_height","BlockNumber"],
-        ["random_number_hash","Hash"],
-        ["swap_id","Hash"],
-        ["timestamp","Moment"],
-        ["sender_addr","Vec<u8>"],
-        ["sender_chain_type","u64"],
-        ["receiver_addr","AccountId"],
-        ["receiver_chain_type","u64"],
-        ["recipient_addr","Vec<u8>"]
       ]
     },
     "EventHTLC":{
