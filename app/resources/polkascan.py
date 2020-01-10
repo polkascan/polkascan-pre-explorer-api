@@ -28,9 +28,9 @@ from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, 
     DemocracyVote, CouncilMotion, CouncilVote, TechCommProposal, TechCommProposalVote, TreasuryProposal
 from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
 from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY
-from app.type_registry import load_type_registry
 from app.utils.ss58 import ss58_decode, ss58_encode
 from scalecodec.base import RuntimeConfiguration
+from scalecodec.type_registry import load_type_registry_preset
 from substrateinterface import SubstrateInterface
 
 
@@ -320,9 +320,9 @@ class AccountDetailResource(JSONAPIDetailResource):
     cache_expiration_time = 6
 
     def __init__(self):
-        RuntimeConfiguration().update_type_registry(load_type_registry('default'))
+        RuntimeConfiguration().update_type_registry(load_type_registry_preset('default'))
         if TYPE_REGISTRY != 'default':
-            RuntimeConfiguration().update_type_registry(load_type_registry(TYPE_REGISTRY))
+            RuntimeConfiguration().update_type_registry(load_type_registry_preset(TYPE_REGISTRY))
         super(AccountDetailResource, self).__init__()
 
     def get_item(self, item_id):
