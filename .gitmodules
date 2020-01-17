@@ -3,4 +3,4 @@
 	url = https://github.com/polkascan/py-substrate-interface.git
 [submodule "py-scale-codec"]
 	path = py-scale-codec
-	url = https://github.com/polkascan/py-scale-codec.git
+	url = https://github.com/ProChain/py-scale-codec.git
