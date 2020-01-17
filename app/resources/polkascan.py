@@ -352,8 +352,10 @@ class DidListResource(JSONAPIListResource):
     
 class DidDetailResource(JSONAPIDetailResource):
     def get_item(self, item_id):
-        print(item_id)
-        return Did.query(self.session).get(item_id).first()
+        if item_id and item_id.startswith('0x'):
+            return Did.query(self.session).filter_by(did_hash=item_id[2:]).first()
+        else:    
+            return Did.query(self.session).get(item_id)
         
 
 class AccountResource(JSONAPIListResource):
