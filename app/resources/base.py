@@ -25,7 +25,7 @@ from dogpile.cache.api import NO_VALUE
 from sqlalchemy.orm import Session
 
 from app.settings import MAX_RESOURCE_PAGE_SIZE, DOGPILE_CACHE_SETTINGS
-
+from app.models.data import Did
 
 class BaseResource(object):
 
@@ -46,6 +46,33 @@ class JSONAPIResource(BaseResource):
     def serialize_item(self, item):
         return item.serialize()
 
+    #["address","address2"]
+    def convert_to_did_items(self):
+        return []
+
+    def convert_to_did(self,data):
+        items = self.convert_to_did_items()
+        if items and len(items)>0:
+            if isinstance(data,list):
+                address = []
+                for row in data:
+                    for item in items:
+                        address.append(row['attributes'][item])
+                alldid = Did.query(self.session).filter(Did.address.in_(address)).all()
+                did_map = dict([(did.address,did.did) for did in alldid])
+                for row in data:
+                    for item in items:
+                        if row['attributes'][item] in did_map:
+                            row['attributes'][item+'_source'] = row['attributes'][item]
+                            row['attributes'][item] = did_map[row['attributes'][item]]
+            else:
+                for item in items:
+                    did = Did.query(self.session).filter_by(address=data['attributes'][item]).first()
+                    if did:
+                        data['attributes'][item+'_source'] = data['attributes'][item]
+                        data['attributes'][item] = did.did
+        return data
+
     def process_get_response(self, req, resp, **kwargs):
         return {
             'status': falcon.HTTP_200,
@@ -54,7 +81,7 @@ class JSONAPIResource(BaseResource):
         }
 
     def get_jsonapi_response(self, data, meta=None, errors=None, links=None, relationships=None, included=None):
-
+        data = self.convert_to_did(data)
         result = {
             'meta': {
                 "authors": [
@@ -67,7 +94,6 @@ class JSONAPIResource(BaseResource):
             "data": data,
             "links": {}
         }
-
         if meta:
             result['meta'].update(meta)
 
@@ -135,7 +161,6 @@ class JSONAPIListResource(JSONAPIResource, ABC):
         items = self.get_query()
         items = self.apply_filters(items, req.params)
         items = self.apply_paging(items, req.params)
-
         return {
             'status': falcon.HTTP_200,
             'media': self.get_jsonapi_response(
@@ -169,7 +194,7 @@ class JSONAPIListResource2(JSONAPIResource, ABC):
         return {
             'status': falcon.HTTP_200,
             'media': self.get_jsonapi_response(
-                data=[self.serialize_item(item) for item in items],
+                data= [self.serialize_item(item) for item in items],
                 meta=self.get_meta()
             ),
             'cacheable': True
@@ -203,7 +228,7 @@ class JSONAPIDetailResource(JSONAPIResource, ABC):
             response = {
                 'status': falcon.HTTP_200,
                 'media': self.get_jsonapi_response(
-                    data=self.serialize_item(item),
+                    data= self.serialize_item(item),
                     relationships=self.get_relationships(req.params.get('include') or [], item),
                     meta=self.get_meta()
                 ),

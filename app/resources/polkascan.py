@@ -123,7 +123,9 @@ class ExtrinsicListResource(JSONAPIListResource):
             query = query.filter_by(address=account_id)
 
         return query
-
+    
+    def convert_to_did_items(self):
+        return ["address"]
 
 class ExtrinsicDetailResource(JSONAPIDetailResource):
 
@@ -153,7 +155,8 @@ class ExtrinsicDetailResource(JSONAPIDetailResource):
 
         return data
 
-
+    def convert_to_did_items(self):
+        return ["address"]
 class EventsListResource(JSONAPIListResource):
 
     def apply_filters(self, query, params):
@@ -289,7 +292,9 @@ class BalanceTransferListResource(JSONAPIListResource):
                 'fee': item.attributes[3]['value']
             }
         }
-
+    def convert_to_did_items(self):
+        return ['sender','destination']
+    
 
 class BalanceTransferDetailResource(JSONAPIDetailResource):
 
@@ -312,6 +317,8 @@ class BalanceTransferDetailResource(JSONAPIDetailResource):
             }
         }
 
+    def convert_to_did_items(self):
+        return ['sender','destination']
 
 class TransferListResource(JSONAPIListResource2):
     
@@ -365,7 +372,8 @@ class AccountResource(JSONAPIListResource):
             Account.updated_at_block.desc()
         )
 
-
+    def convert_to_did_items(self):
+        return ['address']
 class AccountDetailResource(JSONAPIDetailResource):
 
     cache_expiration_time = 6
@@ -379,9 +387,14 @@ class AccountDetailResource(JSONAPIDetailResource):
     def get_item(self, item_id):
         if item_id[0:2] == '0x':
             return Account.query(self.session).filter_by(id=item_id[2:]).first()
+        elif item_id[0:3] == 'did':
+            did = Did.query(self.session).filter_by(did=item_id).first()
+            return Account.query(self.session).filter_by(address = did.address).first()
         else:
             return Account.query(self.session).filter_by(address=item_id).first()
-
+    def convert_to_did_items(self):
+        return ['address']
+        
     def get_relationships(self, include_list, item):
         relationships = {}
 
@@ -455,6 +468,8 @@ class AccountIndexListResource(JSONAPIListResource):
             AccountIndex.updated_at_block.desc()
         )
 
+    def convert_to_did_items(self):
+        return ['address']
 
 class AccountIndexDetailResource(JSONAPIDetailResource):
 
