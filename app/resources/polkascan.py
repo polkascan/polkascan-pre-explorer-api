@@ -118,9 +118,7 @@ class ExtrinsicListResource(JSONAPIListResource):
                 account_id = params.get('filter[address]')[2:]
             elif params.get('filter[address]')[0:3] == 'did':
                 did = Did.query(self.session).filter_by(did=params.get('filter[address]')).first()
-                account = Account.query(self.session).filter_by(address = did.address).first()
-                if account:
-                    account_id = account.id
+                account_id = ss58_decode(did.address, SUBSTRATE_ADDRESS_TYPE)
             else:
                 account_id = ss58_decode(params.get(
                     'filter[address]'), SUBSTRATE_ADDRESS_TYPE)
