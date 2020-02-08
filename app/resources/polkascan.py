@@ -366,7 +366,14 @@ class DidDetailResource(JSONAPIDetailResource):
             return Did.query(self.session).filter_by(did_hash=item_id[2:]).first()
         else:    
             return Did.query(self.session).get(item_id)
-        
+
+class DidMembersResource(JSONAPIListResource2):
+    def get_item_url_name(self):
+        return 'did_hash'
+    def get_query(self,did_hash):
+        return Did.query(self.session).filter_by(superior = did_hash)
+    def has_total(self):
+        return True
 
 class AccountResource(JSONAPIListResource):
 

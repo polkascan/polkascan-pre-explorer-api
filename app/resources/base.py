@@ -186,19 +186,36 @@ class JSONAPIListResource2(JSONAPIResource, ABC):
         page_size = min(int(params.get('page[size]', 25)), MAX_RESOURCE_PAGE_SIZE)
         return query[page * page_size: page * page_size + page_size]
 
+    def has_total(self):
+        return False
+
     def process_get_response(self, req, resp, **kwargs):
         items = self.get_query(kwargs.get(self.get_item_url_name()))
         items = self.apply_filters(items, req.params)
+        total = -1
+        if self.has_total():
+            total = items.count()
         items = self.apply_paging(items, req.params)
-
-        return {
-            'status': falcon.HTTP_200,
-            'media': self.get_jsonapi_response(
-                data= [self.serialize_item(item) for item in items],
-                meta=self.get_meta()
-            ),
-            'cacheable': True
-        }
+        if total >= 0:
+            meta = self.get_meta()
+            meta['total'] = total
+            return {
+                'status': falcon.HTTP_200,
+                'media': self.get_jsonapi_response(
+                    data = [self.serialize_item(item) for item in items],
+                    meta = meta
+                ),
+                'cacheable': True
+            }
+        else:
+            return {
+                'status': falcon.HTTP_200,
+                'media': self.get_jsonapi_response(
+                    data = [self.serialize_item(item) for item in items],
+                    meta=self.get_meta()
+                ),
+                'cacheable': True
+            }
 class JSONAPIDetailResource(JSONAPIResource, ABC):
 
     cache_expiration_time = DOGPILE_CACHE_SETTINGS['default_detail_cache_expiration_time']

@@ -82,6 +82,7 @@ app.add_route('/balances/transfer/{item_id}', polkascan.BalanceTransferDetailRes
 app.add_route('/transfer/{did}', polkascan.TransferListResource())
 app.add_route('/did', polkascan.DidListResource())
 app.add_route('/did/{item_id}', polkascan.DidDetailResource())
+app.add_route('/did/members/{did_hash}', polkascan.DidMembersResource())
 app.add_route('/account', polkascan.AccountResource())
 app.add_route('/account/{item_id}', polkascan.AccountDetailResource())
 app.add_route('/accountindex', polkascan.AccountIndexListResource())
