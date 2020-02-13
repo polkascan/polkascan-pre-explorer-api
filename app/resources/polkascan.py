@@ -367,6 +367,10 @@ class DidDetailResource(JSONAPIDetailResource):
         else:    
             return Did.query(self.session).get(item_id)
 
+class DidDetailBySocialAccountResource(JSONAPIDetailResource):
+    def get_item(self, item_id):
+        return Did.query(self.session).filter_by(social_account_hash=item_id).first()
+
 class DidMembersResource(JSONAPIListResource2):
     def get_item_url_name(self):
         return 'did_hash'
