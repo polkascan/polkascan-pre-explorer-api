@@ -1,6 +1,6 @@
 #  Polkascan PRE Harvester
 #
-#  Copyright 2018-2019 openAware BV (NL).
+#  Copyright 2018-2020 openAware BV (NL).
 #  This file is part of Polkascan.
 #
 #  Polkascan is free software: you can redistribute it and/or modify
@@ -26,6 +26,46 @@ from sqlalchemy.dialects.mysql import LONGTEXT
 from app.models.base import BaseModel
 from app.utils.ss58 import ss58_encode, ss58_encode_account_index
 from app.settings import LOG_TYPE_AUTHORITIESCHANGE, SUBSTRATE_ADDRESS_TYPE
+
+
+class Account(BaseModel):
+    __tablename__ = 'data_account'
+
+    id = sa.Column(sa.String(64), primary_key=True)
+    address = sa.Column(sa.String(48), index=True)
+    index_address = sa.Column(sa.String(24), index=True)
+    is_reaped = sa.Column(sa.Boolean, default=False)
+    is_validator = sa.Column(sa.Boolean, default=False)
+    is_nominator = sa.Column(sa.Boolean, default=False)
+    is_contract = sa.Column(sa.Boolean, default=False)
+    count_reaped = sa.Column(sa.Integer(), default=0)
+    balance = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
+    hash_blake2b = sa.Column(sa.String(64), index=True, nullable=True)
+    identity_display = sa.Column(sa.String(32), index=True, nullable=True)
+    identity_legal = sa.Column(sa.String(32), nullable=True)
+    identity_web = sa.Column(sa.String(32), nullable=True)
+    identity_riot = sa.Column(sa.String(32), nullable=True)
+    identity_email = sa.Column(sa.String(32), nullable=True)
+    identity_twitter = sa.Column(sa.String(32), nullable=True)
+    identity_judgement_good = sa.Column(sa.Integer(), default=0)
+    identity_judgement_bad = sa.Column(sa.Integer(), default=0)
+    created_at_block = sa.Column(sa.Integer(), nullable=False)
+    updated_at_block = sa.Column(sa.Integer(), nullable=False)
+
+    def serialize_id(self):
+        return self.id
+
+
+class AccountAudit(BaseModel):
+    __tablename__ = 'data_account_audit'
+
+    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
+    account_id = sa.Column(sa.String(64), primary_key=True)
+    block_id = sa.Column(sa.Integer(), index=True, nullable=False)
+    extrinsic_idx = sa.Column(sa.Integer())
+    event_idx = sa.Column(sa.Integer())
+    type_id = sa.Column(sa.Integer(), nullable=False)
+    data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
 
 
 class Block(BaseModel):
@@ -103,6 +143,9 @@ class Block(BaseModel):
                                             """)
                                )
 
+    def get_x_axis_value(self):
+        return self.id
+
 
 class BlockTotal(BaseModel):
     __tablename__ = 'data_block_total'
@@ -113,6 +156,8 @@ class BlockTotal(BaseModel):
     session_id = sa.Column(sa.Integer())
     parent_datetime = sa.Column(sa.DateTime())
     blocktime = sa.Column(sa.Integer(), nullable=False)
+    author = sa.Column(sa.String(64), nullable=True)
+    author_account = relationship(Account, foreign_keys=[author], primaryjoin=author == Account.id)
     total_extrinsics = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
     total_extrinsics_success = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
     total_extrinsics_error = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
@@ -132,6 +177,17 @@ class BlockTotal(BaseModel):
     total_accounts_reaped = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
     total_sessions_new = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
     total_contracts_new = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
+
+    def serialize_formatting_hook(self, obj_dict):
+
+        if self.author:
+            obj_dict['attributes']['author_id'] = self.author
+            obj_dict['attributes']['author'] = ss58_encode(self.author.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+
+        return obj_dict
+
+    def get_x_axis_value(self):
+        return self.id
 
 
 class Event(BaseModel):
@@ -221,6 +277,8 @@ class Extrinsic(BaseModel):
 
     address_length = sa.Column(sa.String(2))
     address = sa.Column(sa.String(64), index=True)
+    account = relationship(Account, foreign_keys=[address], primaryjoin=address == Account.id, lazy='subquery')
+
     account_index = sa.Column(sa.String(16), index=True)
     account_idx = sa.Column(sa.Integer(), index=True)
     signature = sa.Column(sa.String(128))
@@ -243,18 +301,16 @@ class Extrinsic(BaseModel):
     def serialize_id(self):
         return '{}-{}'.format(self.block_id, self.extrinsic_idx)
 
-    def format_address(self, item):
-        item['orig_value'] = item['value'].replace('0x', '')
-        item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
-        return item
-
     def serialize_formatting_hook(self, obj_dict):
+
+        if self.account:
+            obj_dict['attributes']['account'] = self.account.serialize()
 
         if obj_dict['attributes'].get('address'):
             obj_dict['attributes']['address_id'] = obj_dict['attributes']['address'].replace('0x', '')
             obj_dict['attributes']['address'] = ss58_encode(obj_dict['attributes']['address'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
 
-        for item in obj_dict['attributes']['params']:
+        for item in obj_dict['attributes'].get('params', []):
             # SS58 format Addresses public keys
             if item['type'] in ['Address', 'AccountId'] and item['value']:
                 self.format_address(item)
@@ -267,7 +323,7 @@ class Extrinsic(BaseModel):
                         'orig_value': vec_item.replace('0x', '')
                     }
             elif item['type'] == 'Box<Proposal>':
-                for proposal_param in item['value'].get('params', []):
+                for proposal_param in item['value'].get('call_args', []):
                     if proposal_param['type'] == 'Address':
                         self.format_address(proposal_param)
 
@@ -294,36 +350,6 @@ class Log(BaseModel):
                 obj_dict['attributes']['data']['value'][idx] = ss58_encode(item.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
 
         return obj_dict
-
-
-class Account(BaseModel):
-    __tablename__ = 'data_account'
-
-    id = sa.Column(sa.String(64), primary_key=True)
-    address = sa.Column(sa.String(48), index=True)
-    is_reaped = sa.Column(sa.Boolean, default=False)
-    is_validator = sa.Column(sa.Boolean, default=False)
-    is_nominator = sa.Column(sa.Boolean, default=False)
-    is_contract = sa.Column(sa.Boolean, default=False)
-    count_reaped = sa.Column(sa.Integer(), default=0)
-    balance = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
-    created_at_block = sa.Column(sa.Integer(), nullable=False)
-    updated_at_block = sa.Column(sa.Integer(), nullable=False)
-
-    def serialize_id(self):
-        return self.address
-
-
-class AccountAudit(BaseModel):
-    __tablename__ = 'data_account_audit'
-
-    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
-    account_id = sa.Column(sa.String(64), primary_key=True)
-    block_id = sa.Column(sa.Integer(), index=True, nullable=False)
-    extrinsic_idx = sa.Column(sa.Integer())
-    event_idx = sa.Column(sa.Integer())
-    type_id = sa.Column(sa.Integer(), nullable=False)
-    data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
 
 
 data_session = sa.Table('data_session', BaseModel.metadata,
@@ -372,7 +398,10 @@ class SessionValidator(BaseModel):
     session_id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
     rank_validator = sa.Column(sa.Integer(), primary_key=True, autoincrement=False, index=True)
     validator_stash = sa.Column(sa.String(64), index=True)
+    validator_stash_account = relationship(Account, foreign_keys=[validator_stash], primaryjoin=validator_stash == Account.id, lazy='subquery')
     validator_controller = sa.Column(sa.String(64), index=True)
+    validator_controller_account = relationship(Account, foreign_keys=[validator_controller],
+                                           primaryjoin=validator_controller == Account.id)
     validator_session = sa.Column(sa.String(64), index=True)
     bonded_total = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
     bonded_active = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
@@ -387,6 +416,10 @@ class SessionValidator(BaseModel):
         return '{}-{}'.format(self.session_id, self.rank_validator)
 
     def serialize_formatting_hook(self, obj_dict):
+
+        if self.validator_stash_account:
+            obj_dict['attributes']['validator_stash_account'] = self.validator_stash_account.serialize()
+
         obj_dict['attributes']['validator_stash_id'] = self.validator_stash
         if self.validator_stash:
             obj_dict['attributes']['validator_stash'] = ss58_encode(self.validator_stash.replace('0x', ''),
@@ -419,6 +452,8 @@ class SessionNominator(BaseModel):
     rank_validator = sa.Column(sa.Integer(), primary_key=True, autoincrement=False, index=True)
     rank_nominator = sa.Column(sa.Integer(), primary_key=True, autoincrement=False, index=True)
     nominator_stash = sa.Column(sa.String(64), index=True)
+    nominator_stash_account = relationship(Account, foreign_keys=[nominator_stash],
+                                           primaryjoin=nominator_stash == Account.id, lazy='subquery')
     nominator_controller = sa.Column(sa.String(64), index=True, nullable=True)
     bonded = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
 
@@ -426,9 +461,18 @@ class SessionNominator(BaseModel):
         return '{}-{}-{}'.format(self.session_id, self.rank_validator, self.rank_nominator)
 
     def serialize_formatting_hook(self, obj_dict):
-        obj_dict['attributes']['nominator_stash_id'] = self.nominator_stash
-        obj_dict['attributes']['nominator_stash'] = ss58_encode(self.nominator_stash.replace('0x', ''),
-                                                                SUBSTRATE_ADDRESS_TYPE)
+
+        if self.nominator_stash_account:
+            obj_dict['attributes']['nominator_stash_account'] = self.nominator_stash_account.serialize()
+        else:
+            obj_dict['attributes']['nominator_stash_account'] = {
+                'type': 'account',
+                'id': self.nominator_stash.replace('0x', ''),
+                'attributes': {
+                    'id': self.nominator_stash.replace('0x', ''),
+                    'address': ss58_encode(self.nominator_stash.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                }
+            }
 
         if self.nominator_controller:
             obj_dict['attributes']['nominator_controller_id'] = self.nominator_controller
@@ -444,6 +488,7 @@ class AccountIndex(BaseModel):
     id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
     short_address = sa.Column(sa.String(24), index=True)
     account_id = sa.Column(sa.String(64), index=True)
+    account = relationship(Account, foreign_keys=[account_id], primaryjoin=account_id == Account.id)
     is_reclaimable = sa.Column(sa.Boolean, default=False)
     is_reclaimed = sa.Column(sa.Boolean, default=False)
     created_at_block = sa.Column(sa.Integer(), nullable=False)
@@ -473,232 +518,6 @@ class AccountIndexAudit(BaseModel):
     event_idx = sa.Column(sa.Integer())
     type_id = sa.Column(sa.Integer(), nullable=False)
     data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
-
-
-class DemocracyProposal(BaseModel):
-    __tablename__ = 'data_democracy_proposal'
-
-    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
-    proposal = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
-    bond = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
-    created_at_block = sa.Column(sa.Integer(), nullable=False)
-    updated_at_block = sa.Column(sa.Integer(), nullable=False)
-    status = sa.Column(sa.String(64))
-
-    def format_address(self, item):
-        item['orig_value'] = item['value'].replace('0x', '')
-        item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
-        return item
-
-    def serialize_formatting_hook(self, obj_dict):
-
-        if obj_dict['attributes'].get('proposal'):
-            for proposal_param in obj_dict['attributes']['proposal'].get('params', []):
-                if proposal_param['type'] == 'Address':
-                    self.format_address(proposal_param)
-
-        return obj_dict
-
-
-class DemocracyProposalAudit(BaseModel):
-    __tablename__ = 'data_democracy_proposal_audit'
-
-    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
-    democracy_proposal_id = sa.Column(sa.Integer(), nullable=False, index=True)
-    block_id = sa.Column(sa.Integer(), index=True, nullable=False)
-    extrinsic_idx = sa.Column(sa.Integer())
-    event_idx = sa.Column(sa.Integer())
-    type_id = sa.Column(sa.Integer(), nullable=False)
-    data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
-
-
-class DemocracyReferendum(BaseModel):
-    __tablename__ = 'data_democracy_referendum'
-
-    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
-    proposal_id = sa.Column(sa.Integer(), nullable=True)
-    proposal = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
-    vote_threshold = sa.Column(sa.String(64))
-    success = sa.Column(sa.Boolean(), nullable=True)
-    created_at_block = sa.Column(sa.Integer(), nullable=False)
-    updated_at_block = sa.Column(sa.Integer(), nullable=False)
-    status = sa.Column(sa.String(64))
-
-    def format_address(self, item):
-        item['orig_value'] = item['value'].replace('0x', '')
-        item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
-        return item
-
-    def serialize_formatting_hook(self, obj_dict):
-        if obj_dict['attributes'].get('proposal'):
-            for proposal_param in obj_dict['attributes']['proposal'].get('proposal', {}).get('params', []):
-                if proposal_param['type'] == 'Address':
-                    self.format_address(proposal_param)
-
-        return obj_dict
-
-
-class DemocracyReferendumAudit(BaseModel):
-    __tablename__ = 'data_democracy_referendum_audit'
-
-    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
-    democracy_referendum_id = sa.Column(sa.Integer(), nullable=False, index=True)
-    block_id = sa.Column(sa.Integer(), index=True, nullable=False)
-    extrinsic_idx = sa.Column(sa.Integer())
-    event_idx = sa.Column(sa.Integer())
-    type_id = sa.Column(sa.Integer(), nullable=False)
-    data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
-
-
-class DemocracyVote(BaseModel):
-    __tablename__ = 'data_democracy_vote'
-
-    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
-    democracy_referendum_id = sa.Column(sa.Integer(), nullable=True, index=True)
-    vote_account_id = sa.Column(sa.String(64), index=True, nullable=True)
-    stash_account_id = sa.Column(sa.String(64), index=True, nullable=True)
-    vote_raw = sa.Column(sa.Integer(), nullable=True)
-    vote_yes = sa.Column(sa.Boolean(), nullable=True)
-    vote_no = sa.Column(sa.Boolean(), nullable=True)
-    stash = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True)
-    conviction = sa.Column(sa.Integer(), nullable=True)
-    vote_yes_weighted = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True)
-    vote_no_weighted = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True)
-    created_at_block = sa.Column(sa.Integer(), nullable=False)
-    updated_at_block = sa.Column(sa.Integer(), nullable=False)
-
-    def serialize_formatting_hook(self, obj_dict):
-        obj_dict['attributes']['vote_address'] = ss58_encode(self.vote_account_id.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
-        obj_dict['attributes']['stash_address'] = ss58_encode(self.stash_account_id.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
-
-        return obj_dict
-
-
-class DemocracyVoteAudit(BaseModel):
-    __tablename__ = 'data_democracy_vote_audit'
-
-    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
-    democracy_referendum_id = sa.Column(sa.Integer(), nullable=False, index=True)
-    block_id = sa.Column(sa.Integer(), index=True, nullable=False)
-    extrinsic_idx = sa.Column(sa.Integer())
-    event_idx = sa.Column(sa.Integer())
-    type_id = sa.Column(sa.Integer(), nullable=False)
-    data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
-
-
-class CouncilMotion(BaseModel):
-    __tablename__ = 'data_council_motion'
-
-    proposal_id = sa.Column(sa.Integer(), primary_key=True)
-    motion_hash = sa.Column(sa.String(64), nullable=False, index=True)
-    account_id = sa.Column(sa.String(64), nullable=True)
-    proposal_hash = sa.Column(sa.String(64), nullable=True)
-    proposal = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
-    member_threshold = sa.Column(sa.Integer(), nullable=False)
-    yes_votes_count = sa.Column(sa.Integer(), nullable=False)
-    no_votes_count = sa.Column(sa.Integer(), nullable=False)
-    approved = sa.Column(sa.Boolean(), nullable=True)
-    executed = sa.Column(sa.Boolean(), nullable=True)
-    created_at_block = sa.Column(sa.Integer(), nullable=False)
-    updated_at_block = sa.Column(sa.Integer(), nullable=False)
-    status = sa.Column(sa.String(64))
-
-    def serialize_id(self):
-        return self.proposal_id
-
-    def serialize_formatting_hook(self, obj_dict):
-        obj_dict['attributes']['address'] = ss58_encode(self.account_id.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
-
-        return obj_dict
-
-
-class CouncilVote(BaseModel):
-    __tablename__ = 'data_council_vote'
-
-    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
-    proposal_id = sa.Column(sa.Integer(), nullable=True, index=True)
-    motion_hash = sa.Column(sa.String(64), index=True)
-    account_id = sa.Column(sa.String(64), index=True)
-    vote = sa.Column(sa.Boolean())
-    created_at_block = sa.Column(sa.Integer(), nullable=False)
-    updated_at_block = sa.Column(sa.Integer(), nullable=False)
-
-    def serialize_formatting_hook(self, obj_dict):
-        obj_dict['attributes']['address'] = ss58_encode(self.account_id.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
-
-        return obj_dict
-
-
-class TechCommProposal(BaseModel):
-    __tablename__ = 'data_techcomm_proposal'
-
-    proposal_id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
-    motion_hash = sa.Column(sa.String(64), nullable=False, index=True)
-    account_id = sa.Column(sa.String(64), nullable=True)
-    proposal_hash = sa.Column(sa.String(64), nullable=True)
-    proposal = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
-    member_threshold = sa.Column(sa.Integer(), nullable=False)
-    yes_votes_count = sa.Column(sa.Integer(), nullable=False)
-    no_votes_count = sa.Column(sa.Integer(), nullable=False)
-    approved = sa.Column(sa.Boolean(), nullable=True)
-    executed = sa.Column(sa.Boolean(), nullable=True)
-    created_at_block = sa.Column(sa.Integer(), nullable=False)
-    updated_at_block = sa.Column(sa.Integer(), nullable=False)
-    status = sa.Column(sa.String(64))
-
-    def serialize_id(self):
-        return self.proposal_id
-
-    def serialize_formatting_hook(self, obj_dict):
-        obj_dict['attributes']['address'] = ss58_encode(self.account_id.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
-
-        return obj_dict
-
-
-class TechCommProposalVote(BaseModel):
-    __tablename__ = 'data_techcomm_proposal_vote'
-
-    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
-    proposal_id = sa.Column(sa.Integer(), nullable=True, index=True)
-    motion_hash = sa.Column(sa.String(64), index=True)
-    account_id = sa.Column(sa.String(64), index=True)
-    vote = sa.Column(sa.Boolean())
-    created_at_block = sa.Column(sa.Integer(), nullable=False)
-    updated_at_block = sa.Column(sa.Integer(), nullable=False)
-
-    def serialize_formatting_hook(self, obj_dict):
-        obj_dict['attributes']['address'] = ss58_encode(self.account_id.replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
-
-        return obj_dict
-
-
-class TreasuryProposal(BaseModel):
-    __tablename__ = 'data_treasury_proposal'
-
-    proposal_id = sa.Column(sa.Integer(), primary_key=True, autoincrement=False)
-    proposed_by_account_id = sa.Column(sa.String(64), nullable=True)
-    value = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
-    beneficiary_account_id = sa.Column(sa.String(64), nullable=True)
-    slash_value = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True)
-    status = sa.Column(sa.String(64))
-    created_at_block = sa.Column(sa.Integer(), nullable=False)
-    updated_at_block = sa.Column(sa.Integer(), nullable=False)
-
-    def serialize_id(self):
-        return self.proposal_id
-
-    def serialize_formatting_hook(self, obj_dict):
-        obj_dict['attributes']['proposed_by_address'] = ss58_encode(
-            self.proposed_by_account_id.replace('0x', ''),
-            SUBSTRATE_ADDRESS_TYPE
-        )
-
-        obj_dict['attributes']['beneficiary_address'] = ss58_encode(
-            self.beneficiary_account_id.replace('0x', ''),
-            SUBSTRATE_ADDRESS_TYPE
-        )
-
-        return obj_dict
 
 
 class Contract(BaseModel):
@@ -865,6 +684,20 @@ class RuntimeConstant(BaseModel):
         return '{}-{}-{}'.format(self.spec_version, self.module_id, self.name)
 
 
+class RuntimeErrorMessage(BaseModel):
+    __tablename__ = 'runtime_error'
+
+    id = sa.Column(sa.Integer(), primary_key=True)
+    spec_version = sa.Column(sa.Integer())
+    module_id = sa.Column(sa.String(64))
+    index = sa.Column(sa.Integer())
+    name = sa.Column(sa.String(255), index=True)
+    documentation = sa.Column(sa.Text())
+
+    def serialize_id(self):
+        return '{}-{}-{}'.format(self.spec_version, self.module_id, self.index)
+
+
 class RuntimeType(BaseModel):
     __tablename__ = 'runtime_type'
     __table_args__ = (sa.UniqueConstraint('spec_version', 'type_string'),)
@@ -873,3 +706,37 @@ class RuntimeType(BaseModel):
     spec_version = sa.Column(sa.Integer(), nullable=False)
     type_string = sa.Column(sa.String(255))
     decoder_class = sa.Column(sa.String(255), nullable=True)
+    is_primitive_runtime = sa.Column(sa.Boolean(), default=False)
+    is_primitive_core = sa.Column(sa.Boolean(), default=False)
+
+    def serialize_id(self):
+        return '{}-{}'.format(self.spec_version, self.type_string)
+
+
+class IdentityJudgement(BaseModel):
+    __tablename__ = 'data_identity_judgement'
+
+    registrar_index = sa.Column(sa.Integer(), primary_key=True)
+    account_id = sa.Column(sa.String(64), primary_key=True, index=True)
+    judgement = sa.Column(sa.String(32))
+    created_at_block = sa.Column(sa.Integer(), nullable=False)
+    updated_at_block = sa.Column(sa.Integer(), nullable=False)
+
+
+class SearchIndexType(BaseModel):
+    __tablename__ = 'data_account_search_index_type'
+
+    id = sa.Column(sa.Integer(), primary_key=True)
+    name = sa.Column(sa.String(64), nullable=False, index=True)
+
+
+class SearchIndex(BaseModel):
+    __tablename__ = 'data_account_search_index'
+
+    id = sa.Column(sa.Integer(), primary_key=True, autoincrement=True)
+    block_id = sa.Column(sa.Integer(), nullable=False, index=True)
+    extrinsic_idx = sa.Column(sa.Integer(), nullable=True, index=True)
+    event_idx = sa.Column(sa.Integer(), nullable=True, index=True)
+    account_id = sa.Column(sa.String(64), nullable=True, index=True)
+    index_type_id = sa.Column(sa.Integer(), nullable=False, index=True)
+    sorting_value = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True, index=True)

@@ -1,6 +1,6 @@
 #  Polkascan PRE Explorer API
 #
-#  Copyright 2018-2019 openAware BV (NL).
+#  Copyright 2018-2020 openAware BV (NL).
 #  This file is part of Polkascan.
 #
 #  Polkascan is free software: you can redistribute it and/or modify
@@ -90,15 +90,5 @@ app.add_route('/session/session/{item_id}', polkascan.SessionDetailResource())
 app.add_route('/session/validator', polkascan.SessionValidatorListResource())
 app.add_route('/session/nominator', polkascan.SessionNominatorListResource())
 app.add_route('/session/validator/{item_id}', polkascan.SessionValidatorDetailResource())
-app.add_route('/democracy/proposal', polkascan.DemocracyProposalListResource())
-app.add_route('/democracy/proposal/{item_id}', polkascan.DemocracyProposalDetailResource())
-app.add_route('/democracy/referendum', polkascan.DemocracyReferendumListResource())
-app.add_route('/democracy/referendum/{item_id}', polkascan.DemocracyReferendumDetailResource())
-app.add_route('/council/motion', polkascan.CouncilMotionListResource())
-app.add_route('/council/motion/{item_id}', polkascan.CouncilMotionDetailResource())
-app.add_route('/techcomm/proposal', polkascan.TechCommProposalListResource())
-app.add_route('/techcomm/proposal/{item_id}', polkascan.TechCommProposalDetailResource())
-app.add_route('/treasury/proposal', polkascan.TreasuryProposalListResource())
-app.add_route('/treasury/proposal/{item_id}', polkascan.TreasuryProposalDetailResource())
 app.add_route('/contract/contract', polkascan.ContractListResource())
 app.add_route('/contract/contract/{item_id}', polkascan.ContractDetailResource())

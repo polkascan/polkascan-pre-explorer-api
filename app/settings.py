@@ -1,6 +1,6 @@
 #  Polkascan PRE Explorer API
 #
-#  Copyright 2018-2019 openAware BV (NL).
+#  Copyright 2018-2020 openAware BV (NL).
 #  This file is part of Polkascan.
 #
 #  Polkascan is free software: you can redistribute it and/or modify
@@ -49,6 +49,11 @@ DEBUG = False
 
 MAX_RESOURCE_PAGE_SIZE = 100
 LOG_TYPE_AUTHORITIESCHANGE = 1
+
+SEARCH_INDEX_SLASHED_ACCOUNT = 1
+SEARCH_INDEX_BALANCETRANSFER = 2
+
+SUBSTRATE_STORAGE_BALANCE = os.environ.get("SUBSTRATE_STORAGE_BALANCE", "FreeBalance")
 
 try:
     from app.local_settings import *

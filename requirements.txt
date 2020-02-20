@@ -33,8 +33,8 @@ requests-mock==1.7.0
 six==1.12.0
 SQLAlchemy==1.3.8
 urllib3==1.25.3
-xxhash==1.4.3
+xxhash==1.3.0
 zipp==0.5.2
 
-scalecodec>=0.9.11
+scalecodec>=0.9.13
 substrate-interface>=0.9.3

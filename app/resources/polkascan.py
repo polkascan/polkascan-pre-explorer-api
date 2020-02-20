@@ -1,6 +1,6 @@
 #  Polkascan PRE Explorer API
 #
-#  Copyright 2018-2019 openAware BV (NL).
+#  Copyright 2018-2020 openAware BV (NL).
 #  This file is part of Polkascan.
 #
 #  Polkascan is free software: you can redistribute it and/or modify
@@ -19,18 +19,21 @@
 #  polkascan.py
 
 import falcon
+import pytz
 from dogpile.cache.api import NO_VALUE
-from sqlalchemy import func
+from scalecodec.type_registry import load_type_registry_preset
+from sqlalchemy import func, tuple_, or_
+from sqlalchemy.orm import defer
 
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
-    RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, DemocracyProposal, Contract, \
-    BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant, SessionNominator, \
-    DemocracyVote, CouncilMotion, CouncilVote, TechCommProposal, TechCommProposalVote, TreasuryProposal
-from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource
-from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY
+    RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, Contract, \
+    BlockTotal, SessionValidator, Log, AccountIndex, RuntimeConstant, SessionNominator, \
+    RuntimeErrorMessage, SearchIndex
+from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource, BaseResource
+from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY, \
+    SEARCH_INDEX_BALANCETRANSFER, SUBSTRATE_STORAGE_BALANCE
 from app.utils.ss58 import ss58_decode, ss58_encode
 from scalecodec.base import RuntimeConfiguration
-from scalecodec.type_registry import load_type_registry_preset
 from substrateinterface import SubstrateInterface
 
 
@@ -52,10 +55,10 @@ class BlockDetailsResource(JSONAPIDetailResource):
             relationships['extrinsics'] = Extrinsic.query(self.session).filter_by(block_id=item.id).order_by(
                 'extrinsic_idx')
         if 'transactions' in include_list:
-            relationships['transactions'] = Extrinsic.query(self.session).filter_by(block_id=item.id, signed=1).order_by(
+            relationships['transactions'] = Extrinsic.query(self.session).options(defer('params')).filter_by(block_id=item.id, signed=1).order_by(
                 'extrinsic_idx')
         if 'inherents' in include_list:
-            relationships['inherents'] = Extrinsic.query(self.session).filter_by(block_id=item.id, signed=0).order_by(
+            relationships['inherents'] = Extrinsic.query(self.session).options(defer('params')).filter_by(block_id=item.id, signed=0).order_by(
                 'extrinsic_idx')
         if 'events' in include_list:
             relationships['events'] = Event.query(self.session).filter_by(block_id=item.id, system=0).order_by(
@@ -80,6 +83,15 @@ class BlockTotalDetailsResource(JSONAPIDetailResource):
     def get_item(self, item_id):
         return BlockTotal.query(self.session).get(item_id)
 
+    def serialize_item(self, item):
+        # Exclude large params from list view
+        data = item.serialize()
+
+        # Include author account
+        if item.author_account:
+            data['attributes']['author_account'] = item.author_account.serialize()
+        return data
+
 
 class BlockTotalListResource(JSONAPIListResource):
 
@@ -92,31 +104,64 @@ class BlockTotalListResource(JSONAPIListResource):
 class ExtrinsicListResource(JSONAPIListResource):
 
     def get_query(self):
-        return Extrinsic.query(self.session).order_by(
+        return Extrinsic.query(self.session).options(defer('params')).order_by(
             Extrinsic.block_id.desc()
         )
 
+    def serialize_item(self, item):
+        # Exclude large params from list view
+        data = item.serialize(exclude=['params'])
+
+        # Add account as relationship
+        if item.account:
+            # data['relationships'] = {'account': {"type": "account", "id": item.account.id}}
+            data['attributes']['account'] = item.account.serialize()
+        return data
+
+    # def get_included_items(self, items):
+    #     # Include account items
+    #     return [item.account.serialize() for item in items if item.account]
+
     def apply_filters(self, query, params):
-        if params.get('filter[signed]'):
-
-            query = query.filter_by(signed=params.get('filter[signed]'))
-
-        if params.get('filter[module_id]'):
-
-            query = query.filter_by(module_id=params.get('filter[module_id]'))
-
-        if params.get('filter[call_id]'):
-
-            query = query.filter_by(call_id=params.get('filter[call_id]'))
 
         if params.get('filter[address]'):
 
-            if params.get('filter[address]')[0:2] == '0x':
-                account_id = params.get('filter[address]')[2:]
+            if len(params.get('filter[address]')) == 64:
+                account_id = params.get('filter[address]')
             else:
-                account_id = ss58_decode(params.get('filter[address]'), SUBSTRATE_ADDRESS_TYPE)
+                try:
+                    account_id = ss58_decode(params.get('filter[address]'), SUBSTRATE_ADDRESS_TYPE)
+                except ValueError:
+                    return query.filter(False)
+        else:
+            account_id = None
 
-            query = query.filter_by(address=account_id)
+        if params.get('filter[search_index]'):
+
+            search_index = SearchIndex.query(self.session).filter_by(
+                index_type_id=params.get('filter[search_index]'),
+                account_id=account_id
+            ).order_by(SearchIndex.sorting_value.desc())
+
+            query = query.filter(tuple_(Extrinsic.block_id, Extrinsic.extrinsic_idx).in_(
+                [[s.block_id, s.extrinsic_idx] for s in search_index]
+            ))
+        else:
+            if params.get('filter[signed]'):
+
+                query = query.filter_by(signed=params.get('filter[signed]'))
+
+            if params.get('filter[module_id]'):
+
+                query = query.filter_by(module_id=params.get('filter[module_id]'))
+
+            if params.get('filter[call_id]'):
+
+                query = query.filter_by(call_id=params.get('filter[call_id]'))
+
+            if params.get('filter[address]'):
+
+                query = query.filter_by(address=account_id)
 
         return query
 
@@ -131,9 +176,24 @@ class ExtrinsicDetailResource(JSONAPIDetailResource):
         if item_id[0:2] == '0x':
             extrinsic = Extrinsic.query(self.session).filter_by(extrinsic_hash=item_id[2:]).first()
         else:
+
+            if len(item_id.split('-')) != 2:
+                return None
+
             extrinsic = Extrinsic.query(self.session).get(item_id.split('-'))
 
         return extrinsic
+
+    def get_relationships(self, include_list, item):
+        relationships = {}
+
+        if 'events' in include_list:
+            relationships['events'] = Event.query(self.session).filter_by(
+                block_id=item.block_id,
+                extrinsic_idx=item.extrinsic_idx
+            ).order_by('event_idx')
+
+        return relationships
 
     def serialize_item(self, item):
         data = item.serialize()
@@ -146,6 +206,32 @@ class ExtrinsicDetailResource(JSONAPIDetailResource):
 
         data['attributes']['documentation'] = runtime_call.documentation
 
+        block = Block.query(self.session).get(item.block_id)
+
+        data['attributes']['datetime'] = block.datetime.replace(tzinfo=pytz.UTC).isoformat()
+
+        if item.account:
+            data['attributes']['account'] = item.account.serialize()
+
+        if item.error:
+            # Retrieve ExtrinsicFailed event
+            extrinsic_failed_event = Event.query(self.session).filter_by(
+                block_id=item.block_id,
+                event_id='ExtrinsicFailed'
+            ).first()
+
+            # Retrieve runtime error
+            if extrinsic_failed_event and 'Module' in extrinsic_failed_event.attributes[0]['value']:
+
+                error = RuntimeErrorMessage.query(self.session).filter_by(
+                    module_id=item.module_id,
+                    index=extrinsic_failed_event.attributes[0]['value']['Module']['error'],
+                    spec_version=item.spec_version_id
+                ).first()
+
+                if error:
+                    data['attributes']['error_message'] = error.documentation
+
         return data
 
 
@@ -153,13 +239,37 @@ class EventsListResource(JSONAPIListResource):
 
     def apply_filters(self, query, params):
 
-        if params.get('filter[module_id]'):
+        if params.get('filter[address]'):
 
-            query = query.filter_by(module_id=params.get('filter[module_id]'))
+            if len(params.get('filter[address]')) == 64:
+                account_id = params.get('filter[address]')
+            else:
+                try:
+                    account_id = ss58_decode(params.get('filter[address]'), SUBSTRATE_ADDRESS_TYPE)
+                except ValueError:
+                    return query.filter(False)
+        else:
+            account_id = None
 
-        if params.get('filter[event_id]'):
+        if params.get('filter[search_index]'):
 
-            query = query.filter_by(event_id=params.get('filter[event_id]'))
+            search_index = SearchIndex.query(self.session).filter_by(
+                index_type_id=params.get('filter[search_index]'),
+                account_id=account_id
+            ).order_by(SearchIndex.sorting_value.desc())
+
+            query = query.filter(tuple_(Event.block_id, Event.event_idx).in_(
+                [[s.block_id, s.event_idx] for s in search_index]
+            ))
+        else:
+
+            if params.get('filter[module_id]'):
+
+                query = query.filter_by(module_id=params.get('filter[module_id]'))
+
+            if params.get('filter[event_id]'):
+
+                query = query.filter_by(event_id=params.get('filter[event_id]'))
 
         return query
 
@@ -175,6 +285,8 @@ class EventDetailResource(JSONAPIDetailResource):
         return 'event_id'
 
     def get_item(self, item_id):
+        if len(item_id.split('-')) != 2:
+            return None
         return Event.query(self.session).get(item_id.split('-'))
 
     def serialize_item(self, item):
@@ -202,6 +314,8 @@ class LogListResource(JSONAPIListResource):
 class LogDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
+        if len(item_id.split('-')) != 2:
+            return None
         return Log.query(self.session).get(item_id.split('-'))
 
 
@@ -268,17 +382,66 @@ class BalanceTransferListResource(JSONAPIListResource):
             Event.module_id == 'balances', Event.event_id == 'Transfer'
         ).order_by(Event.block_id.desc())
 
+    def apply_filters(self, query, params):
+        if params.get('filter[address]'):
+
+            if len(params.get('filter[address]')) == 64:
+                account_id = params.get('filter[address]')
+            else:
+                try:
+                    account_id = ss58_decode(params.get('filter[address]'), SUBSTRATE_ADDRESS_TYPE)
+                except ValueError:
+                    return query.filter(False)
+
+            search_index = SearchIndex.query(self.session).filter_by(
+                index_type_id=SEARCH_INDEX_BALANCETRANSFER,
+                account_id=account_id
+            ).order_by(SearchIndex.sorting_value.desc())
+
+            query = query.filter(tuple_(Event.block_id, Event.event_idx).in_(
+                [[s.block_id, s.event_idx] for s in search_index]
+            ))
+
+        return query
+
     def serialize_item(self, item):
+
+        sender = Account.query(self.session).get(item.attributes[0]['value'].replace('0x', ''))
+
+        if sender:
+            sender_data = sender.serialize()
+        else:
+            sender_data = {
+                'type': 'account',
+                'id': item.attributes[0]['value'].replace('0x', ''),
+                'attributes': {
+                    'id': item.attributes[0]['value'].replace('0x', ''),
+                    'address': ss58_encode(item.attributes[0]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                }
+            }
+
+        destination = Account.query(self.session).get(item.attributes[1]['value'].replace('0x', ''))
+
+        if destination:
+            destination_data = destination.serialize()
+        else:
+            destination_data = {
+                'type': 'account',
+                'id': item.attributes[1]['value'].replace('0x', ''),
+                'attributes': {
+                    'id': item.attributes[1]['value'].replace('0x', ''),
+                    'address': ss58_encode(item.attributes[1]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                }
+            }
+
         return {
             'type': 'balancetransfer',
             'id': '{}-{}'.format(item.block_id, item.event_idx),
             'attributes': {
                 'block_id': item.block_id,
                 'event_idx': '{}-{}'.format(item.block_id, item.event_idx),
-                'sender': ss58_encode(item.attributes[0]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
-                'sender_id': item.attributes[0]['value'].replace('0x', ''),
-                'destination': ss58_encode(item.attributes[1]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
-                'destination_id': item.attributes[1]['value'].replace('0x', ''),
+                'sender': sender_data,
+                'destination': destination_data,
                 'value': item.attributes[2]['value'],
                 'fee': item.attributes[3]['value']
             }
@@ -291,16 +454,43 @@ class BalanceTransferDetailResource(JSONAPIDetailResource):
         return Event.query(self.session).get(item_id.split('-'))
 
     def serialize_item(self, item):
+
+        sender = Account.query(self.session).get(item.attributes[0]['value'].replace('0x', ''))
+
+        if sender:
+            sender_data = sender.serialize()
+        else:
+            sender_data = {
+                'type': 'account',
+                'id': item.attributes[0]['value'].replace('0x', ''),
+                'attributes': {
+                    'id': item.attributes[0]['value'].replace('0x', ''),
+                    'address': ss58_encode(item.attributes[0]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                }
+            }
+
+        destination = Account.query(self.session).get(item.attributes[1]['value'].replace('0x', ''))
+
+        if destination:
+            destination_data = destination.serialize()
+        else:
+            destination_data = {
+                'type': 'account',
+                'id': item.attributes[1]['value'].replace('0x', ''),
+                'attributes': {
+                    'id': item.attributes[1]['value'].replace('0x', ''),
+                    'address': ss58_encode(item.attributes[1]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                }
+            }
+
         return {
             'type': 'balancetransfer',
             'id': '{}-{}'.format(item.block_id, item.event_idx),
             'attributes': {
                 'block_id': item.block_id,
                 'event_idx': '{}-{}'.format(item.block_id, item.event_idx),
-                'sender': ss58_encode(item.attributes[0]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
-                'sender_id': item.attributes[0]['value'].replace('0x', ''),
-                'destination': ss58_encode(item.attributes[1]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
-                'destination_id': item.attributes[1]['value'].replace('0x', ''),
+                'sender': sender_data,
+                'destination': destination_data,
                 'value': item.attributes[2]['value'],
                 'fee': item.attributes[3]['value']
             }
@@ -326,10 +516,7 @@ class AccountDetailResource(JSONAPIDetailResource):
         super(AccountDetailResource, self).__init__()
 
     def get_item(self, item_id):
-        if item_id[0:2] == '0x':
-            return Account.query(self.session).filter_by(id=item_id[2:]).first()
-        else:
-            return Account.query(self.session).filter_by(address=item_id).first()
+        return Account.query(self.session).filter(or_(Account.address == item_id, Account.index_address == item_id)).first()
 
     def get_relationships(self, include_list, item):
         relationships = {}
@@ -345,53 +532,79 @@ class AccountDetailResource(JSONAPIDetailResource):
         return relationships
 
     def serialize_item(self, item):
-        substrate = SubstrateInterface(SUBSTRATE_RPC_URL, metadata_version=SUBSTRATE_METADATA_VERSION)
+        substrate = SubstrateInterface(SUBSTRATE_RPC_URL)
         data = item.serialize()
 
-        storage_call = RuntimeStorage.query(self.session).filter_by(
-            module_id='balances',
-            name='FreeBalance',
-        ).order_by(RuntimeStorage.spec_version.desc()).first()
+        if SUBSTRATE_STORAGE_BALANCE == 'Account':
+            storage_call = RuntimeStorage.query(self.session).filter_by(
+                module_id='balances',
+                name='Account',
+            ).order_by(RuntimeStorage.spec_version.desc()).first()
 
-        data['attributes']['free_balance'] = substrate.get_storage(
-            block_hash=None,
-            module='Balances',
-            function='FreeBalance',
-            params=item.id,
-            return_scale_type=storage_call.type_value,
-            hasher=storage_call.type_hasher,
-            metadata_version=SUBSTRATE_METADATA_VERSION
-        )
+            if storage_call:
+                account_data = substrate.get_storage(
+                    block_hash=None,
+                    module='Balances',
+                    function='Account',
+                    params=item.id,
+                    return_scale_type=storage_call.type_value,
+                    hasher=storage_call.type_hasher,
+                    metadata_version=SUBSTRATE_METADATA_VERSION
+                )
 
-        storage_call = RuntimeStorage.query(self.session).filter_by(
-            module_id='balances',
-            name='ReservedBalance',
-        ).order_by(RuntimeStorage.spec_version.desc()).first()
+                if account_data:
+                    data['attributes']['free_balance'] = account_data['free']
+                    data['attributes']['reserved_balance'] = account_data['reserved']
+        else:
 
-        data['attributes']['reserved_balance'] = substrate.get_storage(
-            block_hash=None,
-            module='Balances',
-            function='ReservedBalance',
-            params=item.id,
-            return_scale_type=storage_call.type_value,
-            hasher=storage_call.type_hasher,
-            metadata_version=SUBSTRATE_METADATA_VERSION
-        )
+            storage_call = RuntimeStorage.query(self.session).filter_by(
+                module_id='balances',
+                name='FreeBalance',
+            ).order_by(RuntimeStorage.spec_version.desc()).first()
+
+            if storage_call:
+                data['attributes']['free_balance'] = substrate.get_storage(
+                    block_hash=None,
+                    module='Balances',
+                    function='FreeBalance',
+                    params=item.id,
+                    return_scale_type=storage_call.type_value,
+                    hasher=storage_call.type_hasher,
+                    metadata_version=SUBSTRATE_METADATA_VERSION
+                )
+
+            storage_call = RuntimeStorage.query(self.session).filter_by(
+                module_id='balances',
+                name='ReservedBalance',
+            ).order_by(RuntimeStorage.spec_version.desc()).first()
+
+            if storage_call:
+                data['attributes']['reserved_balance'] = substrate.get_storage(
+                    block_hash=None,
+                    module='Balances',
+                    function='ReservedBalance',
+                    params=item.id,
+                    return_scale_type=storage_call.type_value,
+                    hasher=storage_call.type_hasher,
+                    metadata_version=SUBSTRATE_METADATA_VERSION
+                )
 
         storage_call = RuntimeStorage.query(self.session).filter_by(
             module_id='system',
             name='AccountNonce',
         ).order_by(RuntimeStorage.spec_version.desc()).first()
 
-        data['attributes']['nonce'] = substrate.get_storage(
-            block_hash=None,
-            module='System',
-            function='AccountNonce',
-            params=item.id,
-            return_scale_type=storage_call.type_value,
-            hasher=storage_call.type_hasher,
-            metadata_version=SUBSTRATE_METADATA_VERSION
-        )
+        if storage_call:
+
+            data['attributes']['nonce'] = substrate.get_storage(
+                block_hash=None,
+                module='System',
+                function='AccountNonce',
+                params=item.id,
+                return_scale_type=storage_call.type_value,
+                hasher=storage_call.type_hasher,
+                metadata_version=SUBSTRATE_METADATA_VERSION
+            )
 
         return data
 
@@ -417,6 +630,14 @@ class AccountIndexDetailResource(JSONAPIDetailResource):
                 address=item.account_id).order_by(Extrinsic.block_id.desc())[:10]
 
         return relationships
+
+    def serialize_item(self, item):
+        data = item.serialize()
+
+        if item.account:
+            data['attributes']['account'] = item.account.serialize()
+
+        return data
 
 
 class SessionListResource(JSONAPIListResource):
@@ -473,6 +694,10 @@ class SessionValidatorListResource(JSONAPIListResource):
 class SessionValidatorDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
+
+        if len(item_id.split('-')) != 2:
+            return None
+
         session_id, rank_validator = item_id.split('-')
         return SessionValidator.query(self.session).filter_by(
             session_id=session_id,
@@ -488,6 +713,17 @@ class SessionValidatorDetailResource(JSONAPIDetailResource):
             ).order_by(SessionNominator.rank_nominator)
 
         return relationships
+
+    def serialize_item(self, item):
+        data = item.serialize()
+
+        if item.validator_stash_account:
+            data['attributes']['validator_stash_account'] = item.validator_stash_account.serialize()
+
+        if item.validator_controller_account:
+            data['attributes']['validator_controller_account'] = item.validator_controller_account.serialize()
+
+        return data
 
 
 class SessionNominatorListResource(JSONAPIListResource):
@@ -508,126 +744,6 @@ class SessionNominatorListResource(JSONAPIListResource):
             query = query.filter_by(session_id=session.id)
 
         return query
-
-
-class DemocracyProposalListResource(JSONAPIListResource):
-
-    def get_query(self):
-        return DemocracyProposal.query(self.session).order_by(
-            DemocracyProposal.id.desc()
-        )
-
-
-class DemocracyProposalDetailResource(JSONAPIDetailResource):
-
-    def get_item(self, item_id):
-        return DemocracyProposal.query(self.session).get(item_id)
-
-
-class DemocracyReferendumListResource(JSONAPIListResource):
-
-    def get_query(self):
-        return DemocracyReferendum.query(self.session).order_by(
-            DemocracyReferendum.id.desc()
-        )
-
-    def serialize_item(self, item):
-        # Exclude large proposals from list view
-        return item.serialize(exclude=['proposal'])
-
-
-class DemocracyReferendumDetailResource(JSONAPIDetailResource):
-
-    cache_expiration_time = 60
-
-    def get_relationships(self, include_list, item):
-        relationships = {}
-
-        if 'votes' in include_list:
-            relationships['votes'] = DemocracyVote.query(self.session).filter_by(
-                democracy_referendum_id=item.id
-            ).order_by(DemocracyVote.updated_at_block.desc())
-
-        return relationships
-
-    def get_item(self, item_id):
-        return DemocracyReferendum.query(self.session).get(item_id)
-
-
-class CouncilMotionListResource(JSONAPIListResource):
-
-    def get_query(self):
-        return CouncilMotion.query(self.session).order_by(
-            CouncilMotion.proposal_id.desc()
-        )
-
-    def serialize_item(self, item):
-        # Exclude large proposals from list view
-        return item.serialize(exclude=['proposal'])
-
-
-class CouncilMotionDetailResource(JSONAPIDetailResource):
-
-    cache_expiration_time = 60
-
-    def get_relationships(self, include_list, item):
-        relationships = {}
-
-        if 'votes' in include_list:
-            relationships['votes'] = CouncilVote.query(self.session).filter_by(
-                proposal_id=item.proposal_id
-            ).order_by(CouncilVote.id.desc())
-
-        return relationships
-
-    def get_item(self, item_id):
-        return CouncilMotion.query(self.session).get(item_id)
-
-
-class TechCommProposalListResource(JSONAPIListResource):
-
-    def get_query(self):
-        return TechCommProposal.query(self.session).order_by(
-            TechCommProposal.proposal_id.desc()
-        )
-
-    def serialize_item(self, item):
-        # Exclude large proposals from list view
-        return item.serialize(exclude=['proposal'])
-
-
-class TechCommProposalDetailResource(JSONAPIDetailResource):
-
-    cache_expiration_time = 60
-
-    def get_relationships(self, include_list, item):
-        relationships = {}
-
-        if 'votes' in include_list:
-            relationships['votes'] = TechCommProposalVote.query(self.session).filter_by(
-                proposal_id=item.proposal_id
-            ).order_by(TechCommProposalVote.id.desc())
-
-        return relationships
-
-    def get_item(self, item_id):
-        return TechCommProposal.query(self.session).get(item_id)
-
-
-class TreasuryProposalListResource(JSONAPIListResource):
-
-    def get_query(self):
-        return TreasuryProposal.query(self.session).order_by(
-            TreasuryProposal.proposal_id.desc()
-        )
-
-
-class TreasuryProposalDetailResource(JSONAPIDetailResource):
-
-    cache_expiration_time = 60
-
-    def get_item(self, item_id):
-        return TreasuryProposal.query(self.session).get(item_id)
 
 
 class ContractListResource(JSONAPIListResource):
@@ -705,6 +821,10 @@ class RuntimeCallDetailResource(JSONAPIDetailResource):
         return 'runtime_call_id'
 
     def get_item(self, item_id):
+
+        if len(item_id.split('-')) != 3:
+            return None
+
         spec_version, module_id, call_id = item_id.split('-')
         return RuntimeCall.query(self.session).filter_by(
             spec_version=spec_version,
@@ -756,6 +876,10 @@ class RuntimeEventDetailResource(JSONAPIDetailResource):
         return 'runtime_event_id'
 
     def get_item(self, item_id):
+
+        if len(item_id.split('-')) != 3:
+            return None
+
         spec_version, module_id, event_id = item_id.split('-')
         return RuntimeEvent.query(self.session).filter_by(
             spec_version=spec_version,
@@ -820,6 +944,10 @@ class RuntimeModuleListResource(JSONAPIListResource):
 class RuntimeModuleDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
+
+        if len(item_id.split('-')) != 2:
+            return None
+
         spec_version, module_id = item_id.split('-')
         return RuntimeModule.query(self.session).filter_by(spec_version=spec_version, module_id=module_id).first()
 
@@ -846,12 +974,21 @@ class RuntimeModuleDetailResource(JSONAPIDetailResource):
                 spec_version=item.spec_version, module_id=item.module_id).order_by(
                 'name')
 
+        if 'errors' in include_list:
+            relationships['errors'] = RuntimeErrorMessage.query(self.session).filter_by(
+                spec_version=item.spec_version, module_id=item.module_id).order_by(
+                'name').order_by(RuntimeErrorMessage.index)
+
         return relationships
 
 
 class RuntimeStorageDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
+
+        if len(item_id.split('-')) != 3:
+            return None
+
         spec_version, module_id, name = item_id.split('-')
         return RuntimeStorage.query(self.session).filter_by(
             spec_version=spec_version,
@@ -873,6 +1010,10 @@ class RuntimeConstantListResource(JSONAPIListResource):
 class RuntimeConstantDetailResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
+
+        if len(item_id.split('-')) != 3:
+            return None
+
         spec_version, module_id, name = item_id.split('-')
         return RuntimeConstant.query(self.session).filter_by(
             spec_version=spec_version,
