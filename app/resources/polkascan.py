@@ -379,6 +379,16 @@ class DidMembersResource(JSONAPIListResource2):
     def has_total(self):
         return True
 
+class DidInviteRanking(JSONAPIListResource):
+    def get_query(self):
+        m = self.session.execute("select t1.did,t1.social_account_hash,count(t1.did) num from data_did t1 left join data_did t2 on t2.`superior` = concat('0x',t1.`did_hash`) group by t1.did,t1.social_account_hash order by count(t1.did) desc limit 0,10")
+        result = []
+        for item in m:
+            result.append([item.did,item.social_account_hash,item.num])
+        return result
+    def serialize_item(self, item):
+        return item
+
 class AccountResource(JSONAPIListResource):
 
     def get_query(self):
