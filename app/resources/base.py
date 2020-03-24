@@ -161,6 +161,8 @@ class JSONAPIListResource(JSONAPIResource, ABC):
         items = self.get_query()
         items = self.apply_filters(items, req.params)
         items = self.apply_paging(items, req.params)
+        print(len(items))
+        print(items)
         return {
             'status': falcon.HTTP_200,
             'media': self.get_jsonapi_response(

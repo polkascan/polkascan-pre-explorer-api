@@ -292,7 +292,7 @@ class BalanceTransferListResource(JSONAPIListResource):
                 'destination': ss58_encode(item.attributes[1]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
                 'destination_id': item.attributes[1]['value'].replace('0x', ''),
                 'value': item.attributes[2]['value'],
-                'fee': item.attributes[3]['value']
+                'fee': 0
             }
         }
     def convert_to_did_items(self):
