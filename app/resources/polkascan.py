@@ -27,10 +27,10 @@ from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, 
     BlockTotal, SessionValidator, Log, DemocracyReferendum, AccountIndex, RuntimeConstant, SessionNominator, \
     DemocracyVote, CouncilMotion, CouncilVote, TechCommProposal, TechCommProposalVote, TreasuryProposal, Transfer, Did
 from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIListResource2,JSONAPIDetailResource
-from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY
+from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY_PATH
 from app.utils.ss58 import ss58_decode, ss58_encode
 from scalecodec.base import RuntimeConfiguration
-from scalecodec.type_registry import load_type_registry_preset
+from scalecodec.type_registry import load_type_registry_preset,load_type_registry_file
 from substrateinterface import SubstrateInterface
 import json
 import decimal
@@ -404,8 +404,8 @@ class AccountDetailResource(JSONAPIDetailResource):
 
     def __init__(self):
         RuntimeConfiguration().update_type_registry(load_type_registry_preset('default'))
-        if TYPE_REGISTRY != 'default':
-            RuntimeConfiguration().update_type_registry(load_type_registry_preset(TYPE_REGISTRY))
+        if TYPE_REGISTRY_PATH:
+            RuntimeConfiguration().update_type_registry(load_type_registry_file(TYPE_REGISTRY_PATH))
         super(AccountDetailResource, self).__init__()
 
     def get_item(self, item_id):
@@ -433,54 +433,35 @@ class AccountDetailResource(JSONAPIDetailResource):
         return relationships
 
     def serialize_item(self, item):
-        substrate = SubstrateInterface(
-            SUBSTRATE_RPC_URL, metadata_version=SUBSTRATE_METADATA_VERSION)
+        substrate = SubstrateInterface(SUBSTRATE_RPC_URL)
         data = item.serialize()
 
         storage_call = RuntimeStorage.query(self.session).filter_by(
-            module_id='balances',
-            name='FreeBalance',
-        ).order_by(RuntimeStorage.spec_version.desc()).first()
-
-        data['attributes']['free_balance'] = substrate.get_storage(
-            block_hash=None,
-            module='Balances',
-            function='FreeBalance',
-            params=item.id,
-            return_scale_type=storage_call.type_value,
-            hasher=storage_call.type_hasher,
-            metadata_version=SUBSTRATE_METADATA_VERSION
-        )
-
-        storage_call = RuntimeStorage.query(self.session).filter_by(
-            module_id='balances',
-            name='ReservedBalance',
-        ).order_by(RuntimeStorage.spec_version.desc()).first()
-
-        data['attributes']['reserved_balance'] = substrate.get_storage(
-            block_hash=None,
-            module='Balances',
-            function='ReservedBalance',
-            params=item.id,
-            return_scale_type=storage_call.type_value,
-            hasher=storage_call.type_hasher,
-            metadata_version=SUBSTRATE_METADATA_VERSION
-        )
-
-        storage_call = RuntimeStorage.query(self.session).filter_by(
             module_id='system',
-            name='AccountNonce',
+            name='Account',
         ).order_by(RuntimeStorage.spec_version.desc()).first()
+        
+        print(storage_call)
 
-        data['attributes']['nonce'] = substrate.get_storage(
+        account = substrate.get_storage(
             block_hash=None,
             module='System',
-            function='AccountNonce',
+            function='Account',
             params=item.id,
             return_scale_type=storage_call.type_value,
             hasher=storage_call.type_hasher,
             metadata_version=SUBSTRATE_METADATA_VERSION
         )
+
+        print('----------------')
+
+        print(account)
+
+        data['attributes']['free_balance'] = account['data']['free']
+
+        data['attributes']['reserved_balance'] = account['data']['reserved']
+
+        data['attributes']['nonce'] = account['nonce']
 
         return data
 

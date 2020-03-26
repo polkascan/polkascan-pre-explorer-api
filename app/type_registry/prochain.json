@@ -1,9 +1,16 @@
 {
-  "default": {
+  "types": {
+    "Keys": {
+      "type": "struct",
+      "type_mapping": [
+         ["grandpa", "AccountId"],
+         ["babe", "AccountId"],
+         ["im_online", "AccountId"],
+         ["authority_discovery", "AccountId"]
+      ]
+    },
     "Did":"Vec<u8>",
-    "Keys": "SessionKeysPolkadot",
     "BlockNumber": "U32",
-    "Index": "U64",
     "ExternalAddress":{
       "type":"struct",
       "type_mapping":[
@@ -16,7 +23,8 @@
         "type":"struct",
         "type_mapping":[
           ["event_name","Vec<u8>"],
-          ["event_url","Vec<u8>"]
+          ["event_url","Vec<u8>"],
+          ["event_data","Vec<u8>"]
         ]
     },
      "LockedRecords":{
@@ -46,6 +54,7 @@
       ["did", "Did"],
       ["locked_records", "Option<LockedRecords<Balance, Moment>>"],
       ["unlock_records", "Option<UnlockedRecords<Balance, Moment>>"],
+      ["is_partner","bool"],
       ["social_account", "Option<Hash>"],
       ["subordinate_count", "u64"],
       ["group_name","Option<Vec<u8>>"],
@@ -82,11 +91,9 @@
         ["expire_height","u32"],
         ["random_number_hash","Vec<u8>"],
         ["swap_id","Hash"],
-        ["event_timestamp","u64"],
-        ["htlc_timestamp","u64"],
         ["sender_addr","Vec<u8>"],
         ["sender_chain_type","HTLCChain"],
-        ["receiver_addr","Vec<u8>"],
+        ["receiver_addr","Hash"],
         ["receiver_chain_type","HTLCChain"],
         ["recipient_addr","Vec<u8>"],
         ["out_amount","Balance"],
