@@ -17,18 +17,20 @@
 #  along with Polkascan. If not, see <http://www.gnu.org/licenses/>.
 #
 #  polkascan.py
+import binascii
 
 import falcon
 import pytz
 from dogpile.cache.api import NO_VALUE
 from scalecodec.type_registry import load_type_registry_preset
 from sqlalchemy import func, tuple_, or_
-from sqlalchemy.orm import defer
+from sqlalchemy.orm import defer, subqueryload, lazyload, lazyload_all
 
+from app import settings
 from app.models.data import Block, Extrinsic, Event, RuntimeCall, RuntimeEvent, Runtime, RuntimeModule, \
     RuntimeCallParam, RuntimeEventAttribute, RuntimeType, RuntimeStorage, Account, Session, Contract, \
     BlockTotal, SessionValidator, Log, AccountIndex, RuntimeConstant, SessionNominator, \
-    RuntimeErrorMessage, SearchIndex
+    RuntimeErrorMessage, SearchIndex, AccountInfoSnapshot
 from app.resources.base import JSONAPIResource, JSONAPIListResource, JSONAPIDetailResource, BaseResource
 from app.settings import SUBSTRATE_RPC_URL, SUBSTRATE_METADATA_VERSION, SUBSTRATE_ADDRESS_TYPE, TYPE_REGISTRY, \
     SEARCH_INDEX_BALANCETRANSFER, SUBSTRATE_STORAGE_BALANCE
@@ -61,7 +63,7 @@ class BlockDetailsResource(JSONAPIDetailResource):
             relationships['inherents'] = Extrinsic.query(self.session).options(defer('params')).filter_by(block_id=item.id, signed=0).order_by(
                 'extrinsic_idx')
         if 'events' in include_list:
-            relationships['events'] = Event.query(self.session).filter_by(block_id=item.id, system=0).order_by(
+            relationships['events'] = Event.query(self.session).filter_by(block_id=item.id).order_by(
                 'event_idx')
         if 'logs' in include_list:
             relationships['logs'] = Log.query(self.session).filter_by(block_id=item.id).order_by(
@@ -81,7 +83,21 @@ class BlockListResource(JSONAPIListResource):
 class BlockTotalDetailsResource(JSONAPIDetailResource):
 
     def get_item(self, item_id):
-        return BlockTotal.query(self.session).get(item_id)
+        if item_id.isnumeric():
+            return BlockTotal.query(self.session).get(item_id)
+        else:
+            block = Block.query(self.session).filter_by(hash=item_id).first()
+            if block:
+                return BlockTotal.query(self.session).get(block.id)
+
+    def serialize_item(self, item):
+        # Exclude large params from list view
+        data = item.serialize()
+
+        # Include author account
+        if item.author_account:
+            data['attributes']['author_account'] = item.author_account.serialize()
+        return data
 
     def serialize_item(self, item):
         # Exclude large params from list view
@@ -100,8 +116,26 @@ class BlockTotalListResource(JSONAPIListResource):
             BlockTotal.id.desc()
         )
 
+    def apply_filters(self, query, params):
+
+        if params.get('filter[author]'):
+
+            if len(params.get('filter[author]')) == 64:
+                account_id = params.get('filter[author]')
+            else:
+                try:
+                    account_id = ss58_decode(params.get('filter[author]'), SUBSTRATE_ADDRESS_TYPE)
+                except ValueError:
+                    return query.filter(False)
+
+            query = query.filter_by(author=account_id)
+
+        return query
+
 
 class ExtrinsicListResource(JSONAPIListResource):
+
+    exclude_params = True
 
     def get_query(self):
         return Extrinsic.query(self.session).options(defer('params')).order_by(
@@ -110,7 +144,11 @@ class ExtrinsicListResource(JSONAPIListResource):
 
     def serialize_item(self, item):
         # Exclude large params from list view
-        data = item.serialize(exclude=['params'])
+
+        if self.exclude_params:
+            data = item.serialize(exclude=['params'])
+        else:
+            data = item.serialize()
 
         # Add account as relationship
         if item.account:
@@ -138,15 +176,23 @@ class ExtrinsicListResource(JSONAPIListResource):
 
         if params.get('filter[search_index]'):
 
-            search_index = SearchIndex.query(self.session).filter_by(
-                index_type_id=params.get('filter[search_index]'),
-                account_id=account_id
+            self.exclude_params = False
+
+            if type(params.get('filter[search_index]')) != list:
+                params['filter[search_index]'] = [params.get('filter[search_index]')]
+
+            search_index = SearchIndex.query(self.session).filter(
+                SearchIndex.index_type_id.in_(params.get('filter[search_index]')),
+                SearchIndex.account_id == account_id
             ).order_by(SearchIndex.sorting_value.desc())
 
             query = query.filter(tuple_(Extrinsic.block_id, Extrinsic.extrinsic_idx).in_(
                 [[s.block_id, s.extrinsic_idx] for s in search_index]
             ))
         else:
+
+            self.exclude_params = True
+
             if params.get('filter[signed]'):
 
                 query = query.filter_by(signed=params.get('filter[signed]'))
@@ -221,16 +267,21 @@ class ExtrinsicDetailResource(JSONAPIDetailResource):
             ).first()
 
             # Retrieve runtime error
-            if extrinsic_failed_event and 'Module' in extrinsic_failed_event.attributes[0]['value']:
+            if extrinsic_failed_event:
+                if 'Module' in extrinsic_failed_event.attributes[0]['value']:
 
-                error = RuntimeErrorMessage.query(self.session).filter_by(
-                    module_id=item.module_id,
-                    index=extrinsic_failed_event.attributes[0]['value']['Module']['error'],
-                    spec_version=item.spec_version_id
-                ).first()
+                    error = RuntimeErrorMessage.query(self.session).filter_by(
+                        module_id=item.module_id,
+                        index=extrinsic_failed_event.attributes[0]['value']['Module']['error'],
+                        spec_version=item.spec_version_id
+                    ).first()
 
-                if error:
-                    data['attributes']['error_message'] = error.documentation
+                    if error:
+                        data['attributes']['error_message'] = error.documentation
+                elif 'BadOrigin' in extrinsic_failed_event.attributes[0]['value']:
+                    data['attributes']['error_message'] = 'Bad origin'
+                elif 'CannotLookup' in extrinsic_failed_event.attributes[0]['value']:
+                    data['attributes']['error_message'] = 'Cannot lookup'
 
         return data
 
@@ -253,9 +304,12 @@ class EventsListResource(JSONAPIListResource):
 
         if params.get('filter[search_index]'):
 
-            search_index = SearchIndex.query(self.session).filter_by(
-                index_type_id=params.get('filter[search_index]'),
-                account_id=account_id
+            if type(params.get('filter[search_index]')) != list:
+                params['filter[search_index]'] = [params.get('filter[search_index]')]
+
+            search_index = SearchIndex.query(self.session).filter(
+                SearchIndex.index_type_id.in_(params.get('filter[search_index]')),
+                SearchIndex.account_id == account_id
             ).order_by(SearchIndex.sorting_value.desc())
 
             query = query.filter(tuple_(Event.block_id, Event.event_idx).in_(
@@ -264,17 +318,18 @@ class EventsListResource(JSONAPIListResource):
         else:
 
             if params.get('filter[module_id]'):
-
                 query = query.filter_by(module_id=params.get('filter[module_id]'))
 
             if params.get('filter[event_id]'):
 
                 query = query.filter_by(event_id=params.get('filter[event_id]'))
+            else:
+                query = query.filter(Event.event_id.notin_(['ExtrinsicSuccess', 'ExtrinsicFailed']))
 
         return query
 
     def get_query(self):
-        return Event.query(self.session).filter(Event.system == False).order_by(
+        return Event.query(self.session).order_by(
             Event.block_id.desc()
         )
 
@@ -393,59 +448,120 @@ class BalanceTransferListResource(JSONAPIListResource):
                 except ValueError:
                     return query.filter(False)
 
-            search_index = SearchIndex.query(self.session).filter_by(
-                index_type_id=SEARCH_INDEX_BALANCETRANSFER,
-                account_id=account_id
+            search_index = SearchIndex.query(self.session).filter(
+                SearchIndex.index_type_id.in_([
+                    settings.SEARCH_INDEX_BALANCETRANSFER,
+                    settings.SEARCH_INDEX_CLAIMS_CLAIMED,
+                    settings.SEARCH_INDEX_BALANCES_DEPOSIT
+                ]),
+                SearchIndex.account_id == account_id
             ).order_by(SearchIndex.sorting_value.desc())
 
-            query = query.filter(tuple_(Event.block_id, Event.event_idx).in_(
+            query = Event.query(self.session).filter(tuple_(Event.block_id, Event.event_idx).in_(
                 [[s.block_id, s.event_idx] for s in search_index]
-            ))
+            )).order_by(Event.block_id.desc())
+
 
         return query
 
     def serialize_item(self, item):
 
-        sender = Account.query(self.session).get(item.attributes[0]['value'].replace('0x', ''))
+        if item.event_id == 'Transfer':
 
-        if sender:
-            sender_data = sender.serialize()
-        else:
-            sender_data = {
-                'type': 'account',
-                'id': item.attributes[0]['value'].replace('0x', ''),
-                'attributes': {
+            sender = Account.query(self.session).get(item.attributes[0]['value'].replace('0x', ''))
+
+            if sender:
+                sender_data = sender.serialize()
+            else:
+                sender_data = {
+                    'type': 'account',
                     'id': item.attributes[0]['value'].replace('0x', ''),
-                    'address': ss58_encode(item.attributes[0]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                    'attributes': {
+                        'id': item.attributes[0]['value'].replace('0x', ''),
+                        'address': ss58_encode(item.attributes[0]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                    }
                 }
-            }
 
-        destination = Account.query(self.session).get(item.attributes[1]['value'].replace('0x', ''))
+            destination = Account.query(self.session).get(item.attributes[1]['value'].replace('0x', ''))
 
-        if destination:
-            destination_data = destination.serialize()
-        else:
-            destination_data = {
-                'type': 'account',
-                'id': item.attributes[1]['value'].replace('0x', ''),
-                'attributes': {
+            if destination:
+                destination_data = destination.serialize()
+            else:
+                destination_data = {
+                    'type': 'account',
                     'id': item.attributes[1]['value'].replace('0x', ''),
-                    'address': ss58_encode(item.attributes[1]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                    'attributes': {
+                        'id': item.attributes[1]['value'].replace('0x', ''),
+                        'address': ss58_encode(item.attributes[1]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                    }
                 }
-            }
+            # Some networks don't have fees
+            if len(item.attributes) == 4:
+                fee = item.attributes[3]['value']
+            else:
+                fee = 0
+
+            value = item.attributes[2]['value']
+        elif item.event_id == 'Claimed':
+
+            destination = Account.query(self.session).get(item.attributes[0]['value'].replace('0x', ''))
+
+            if destination:
+                destination_data = destination.serialize()
+            else:
+                destination_data = {
+                    'type': 'account',
+                    'id': item.attributes[0]['value'].replace('0x', ''),
+                    'attributes': {
+                        'id': item.attributes[0]['value'].replace('0x', ''),
+                        'address': ss58_encode(item.attributes[0]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                    }
+                }
+
+            fee = 0
+            sender_data = {'name': 'Claim', 'eth_address': item.attributes[1]['value']}
+            value = item.attributes[2]['value']
+
+        elif item.event_id == 'Deposit':
+
+            destination = Account.query(self.session).get(item.attributes[0]['value'].replace('0x', ''))
+
+            if destination:
+                destination_data = destination.serialize()
+            else:
+                destination_data = {
+                    'type': 'account',
+                    'id': item.attributes[0]['value'].replace('0x', ''),
+                    'attributes': {
+                        'id': item.attributes[0]['value'].replace('0x', ''),
+                        'address': ss58_encode(item.attributes[0]['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
+                    }
+                }
+
+            fee = 0
+            sender_data = {'name': 'Deposit'}
+            value = item.attributes[1]['value']
+        else:
+            sender_data = {}
+            fee = 0
+            destination_data = {}
+            value = None
 
         return {
             'type': 'balancetransfer',
             'id': '{}-{}'.format(item.block_id, item.event_idx),
             'attributes': {
                 'block_id': item.block_id,
+                'event_id': item.event_id,
                 'event_idx': '{}-{}'.format(item.block_id, item.event_idx),
                 'sender': sender_data,
                 'destination': destination_data,
-                'value': item.attributes[2]['value'],
-                'fee': item.attributes[3]['value']
+                'value': value,
+                'fee': fee
             }
         }
+
+
 
 
 class BalanceTransferDetailResource(JSONAPIDetailResource):
@@ -483,6 +599,12 @@ class BalanceTransferDetailResource(JSONAPIDetailResource):
                 }
             }
 
+        # Some networks don't have fees
+        if len(item.attributes) == 4:
+            fee = item.attributes[3]['value']
+        else:
+            fee = 0
+
         return {
             'type': 'balancetransfer',
             'id': '{}-{}'.format(item.block_id, item.event_idx),
@@ -492,7 +614,7 @@ class BalanceTransferDetailResource(JSONAPIDetailResource):
                 'sender': sender_data,
                 'destination': destination_data,
                 'value': item.attributes[2]['value'],
-                'fee': item.attributes[3]['value']
+                'fee': fee
             }
         }
 
@@ -501,8 +623,63 @@ class AccountResource(JSONAPIListResource):
 
     def get_query(self):
         return Account.query(self.session).order_by(
-            Account.updated_at_block.desc()
+            Account.balance_total.desc()
         )
+
+    def apply_filters(self, query, params):
+
+        if params.get('filter[is_validator]'):
+            query = query.filter_by(is_validator=True)
+
+        if params.get('filter[is_nominator]'):
+            query = query.filter_by(is_nominator=True)
+
+        if params.get('filter[is_council_member]'):
+            query = query.filter_by(is_council_member=True)
+
+        if params.get('filter[is_registrar]'):
+            query = query.filter_by(is_registrar=True)
+
+        if params.get('filter[is_sudo]'):
+            query = query.filter_by(is_sudo=True)
+
+        if params.get('filter[is_tech_comm_member]'):
+            query = query.filter_by(is_tech_comm_member=True)
+
+        if params.get('filter[is_treasury]'):
+            query = query.filter_by(is_treasury=True)
+
+        if params.get('filter[was_validator]'):
+            query = query.filter_by(was_validator=True)
+
+        if params.get('filter[was_nominator]'):
+            query = query.filter_by(was_nominator=True)
+
+        if params.get('filter[was_council_member]'):
+            query = query.filter_by(was_council_member=True)
+
+        if params.get('filter[was_registrar]'):
+            query = query.filter_by(was_registrar=True)
+
+        if params.get('filter[was_sudo]'):
+            query = query.filter_by(was_sudo=True)
+
+        if params.get('filter[was_tech_comm_member]'):
+            query = query.filter_by(was_tech_comm_member=True)
+
+        if params.get('filter[has_identity]'):
+            query = query.filter_by(has_identity=True, identity_judgement_bad=0)
+
+        if params.get('filter[has_subidentity]'):
+            query = query.filter_by(has_subidentity=True, identity_judgement_bad=0)
+
+        if params.get('filter[identity_judgement_good]'):
+            query = query.filter(Account.identity_judgement_good > 0, Account.identity_judgement_bad == 0)
+
+        if params.get('filter[blacklist]'):
+            query = query.filter(Account.identity_judgement_bad > 0)
+
+        return query
 
 
 class AccountDetailResource(JSONAPIDetailResource):
@@ -532,79 +709,126 @@ class AccountDetailResource(JSONAPIDetailResource):
         return relationships
 
     def serialize_item(self, item):
-        substrate = SubstrateInterface(SUBSTRATE_RPC_URL)
         data = item.serialize()
 
-        if SUBSTRATE_STORAGE_BALANCE == 'Account':
-            storage_call = RuntimeStorage.query(self.session).filter_by(
-                module_id='balances',
-                name='Account',
-            ).order_by(RuntimeStorage.spec_version.desc()).first()
+        # Get balance history
+        account_info_snapshot = AccountInfoSnapshot.query(self.session).filter_by(
+                account_id=item.id
+        ).order_by(AccountInfoSnapshot.block_id.asc())[:1000]
 
-            if storage_call:
-                account_data = substrate.get_storage(
-                    block_hash=None,
-                    module='Balances',
-                    function='Account',
-                    params=item.id,
-                    return_scale_type=storage_call.type_value,
-                    hasher=storage_call.type_hasher,
-                    metadata_version=SUBSTRATE_METADATA_VERSION
-                )
+        data['attributes']['balance_history'] = [
+            {
+                'name': "Total balance",
+                'type': 'line',
+                'data': [
+                    [item.block_id, float((item.balance_total or 0) / 10**settings.SUBSTRATE_TOKEN_DECIMALS)]
+                    for item in account_info_snapshot
+                ],
+            }
+        ]
 
-                if account_data:
-                    data['attributes']['free_balance'] = account_data['free']
-                    data['attributes']['reserved_balance'] = account_data['reserved']
-        else:
+        if settings.USE_NODE_RETRIEVE_BALANCES == 'True':
 
-            storage_call = RuntimeStorage.query(self.session).filter_by(
-                module_id='balances',
-                name='FreeBalance',
-            ).order_by(RuntimeStorage.spec_version.desc()).first()
+            substrate = SubstrateInterface(SUBSTRATE_RPC_URL)
 
-            if storage_call:
-                data['attributes']['free_balance'] = substrate.get_storage(
-                    block_hash=None,
-                    module='Balances',
-                    function='FreeBalance',
-                    params=item.id,
-                    return_scale_type=storage_call.type_value,
-                    hasher=storage_call.type_hasher,
-                    metadata_version=SUBSTRATE_METADATA_VERSION
-                )
+            if SUBSTRATE_STORAGE_BALANCE == 'Account':
+                storage_call = RuntimeStorage.query(self.session).filter_by(
+                    module_id='system',
+                    name='Account',
+                ).order_by(RuntimeStorage.spec_version.desc()).first()
 
-            storage_call = RuntimeStorage.query(self.session).filter_by(
-                module_id='balances',
-                name='ReservedBalance',
-            ).order_by(RuntimeStorage.spec_version.desc()).first()
+                if storage_call:
+                    account_data = substrate.get_storage(
+                        block_hash=None,
+                        module='System',
+                        function='Account',
+                        params=item.id,
+                        return_scale_type=storage_call.type_value,
+                        hasher=storage_call.type_hasher,
+                        metadata_version=SUBSTRATE_METADATA_VERSION
+                    )
 
-            if storage_call:
-                data['attributes']['reserved_balance'] = substrate.get_storage(
-                    block_hash=None,
-                    module='Balances',
-                    function='ReservedBalance',
-                    params=item.id,
-                    return_scale_type=storage_call.type_value,
-                    hasher=storage_call.type_hasher,
-                    metadata_version=SUBSTRATE_METADATA_VERSION
-                )
+                    if account_data:
+                        data['attributes']['free_balance'] = account_data['data']['free']
+                        data['attributes']['reserved_balance'] = account_data['data']['reserved']
+                        data['attributes']['misc_frozen_balance'] = account_data['data']['miscFrozen']
+                        data['attributes']['fee_frozen_balance'] = account_data['data']['feeFrozen']
+                        data['attributes']['nonce'] = account_data['nonce']
 
-        storage_call = RuntimeStorage.query(self.session).filter_by(
-            module_id='system',
-            name='AccountNonce',
-        ).order_by(RuntimeStorage.spec_version.desc()).first()
+            elif SUBSTRATE_STORAGE_BALANCE == 'Balances.Account':
 
-        if storage_call:
+                storage_call = RuntimeStorage.query(self.session).filter_by(
+                    module_id='balances',
+                    name='Account',
+                ).order_by(RuntimeStorage.spec_version.desc()).first()
 
-            data['attributes']['nonce'] = substrate.get_storage(
-                block_hash=None,
-                module='System',
-                function='AccountNonce',
-                params=item.id,
-                return_scale_type=storage_call.type_value,
-                hasher=storage_call.type_hasher,
-                metadata_version=SUBSTRATE_METADATA_VERSION
-            )
+                if storage_call:
+                    account_data = substrate.get_storage(
+                        block_hash=None,
+                        module='Balances',
+                        function='Account',
+                        params=item.id,
+                        return_scale_type=storage_call.type_value,
+                        hasher=storage_call.type_hasher,
+                        metadata_version=SUBSTRATE_METADATA_VERSION
+                    )
+
+                    if account_data:
+                        data['attributes']['balance_free'] = account_data['free']
+                        data['attributes']['balance_reserved'] = account_data['reserved']
+                        data['attributes']['misc_frozen_balance'] = account_data['miscFrozen']
+                        data['attributes']['fee_frozen_balance'] = account_data['feeFrozen']
+                        data['attributes']['nonce'] = None
+            else:
+
+                storage_call = RuntimeStorage.query(self.session).filter_by(
+                    module_id='balances',
+                    name='FreeBalance',
+                ).order_by(RuntimeStorage.spec_version.desc()).first()
+
+                if storage_call:
+                    data['attributes']['free_balance'] = substrate.get_storage(
+                        block_hash=None,
+                        module='Balances',
+                        function='FreeBalance',
+                        params=item.id,
+                        return_scale_type=storage_call.type_value,
+                        hasher=storage_call.type_hasher,
+                        metadata_version=SUBSTRATE_METADATA_VERSION
+                    )
+
+                storage_call = RuntimeStorage.query(self.session).filter_by(
+                    module_id='balances',
+                    name='ReservedBalance',
+                ).order_by(RuntimeStorage.spec_version.desc()).first()
+
+                if storage_call:
+                    data['attributes']['reserved_balance'] = substrate.get_storage(
+                        block_hash=None,
+                        module='Balances',
+                        function='ReservedBalance',
+                        params=item.id,
+                        return_scale_type=storage_call.type_value,
+                        hasher=storage_call.type_hasher,
+                        metadata_version=SUBSTRATE_METADATA_VERSION
+                    )
+
+                storage_call = RuntimeStorage.query(self.session).filter_by(
+                    module_id='system',
+                    name='AccountNonce',
+                ).order_by(RuntimeStorage.spec_version.desc()).first()
+
+                if storage_call:
+
+                    data['attributes']['nonce'] = substrate.get_storage(
+                        block_hash=None,
+                        module='System',
+                        function='AccountNonce',
+                        params=item.id,
+                        return_scale_type=storage_call.type_value,
+                        hasher=storage_call.type_hasher,
+                        metadata_version=SUBSTRATE_METADATA_VERSION
+                    )
 
         return data
 

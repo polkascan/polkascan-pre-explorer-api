@@ -17,7 +17,6 @@
 #  along with Polkascan. If not, see <http://www.gnu.org/licenses/>.
 #
 #  main.py
-from app.settings import DB_CONNECTION, DEBUG, DOGPILE_CACHE_SETTINGS
 
 import falcon
 
@@ -26,11 +25,14 @@ from dogpile.cache import make_region
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.settings import DB_CONNECTION, DEBUG, DOGPILE_CACHE_SETTINGS
+
 from app.middleware.context import ContextMiddleware
 from app.middleware.sessionmanager import SQLAlchemySessionManager
 from app.middleware.cache import CacheMiddleware
 
 from app.resources import polkascan
+
 
 # Database connection
 engine = create_engine(DB_CONNECTION, echo=DEBUG, isolation_level="READ_UNCOMMITTED")

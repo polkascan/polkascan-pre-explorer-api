@@ -35,12 +35,34 @@ class Account(BaseModel):
     address = sa.Column(sa.String(48), index=True)
     index_address = sa.Column(sa.String(24), index=True)
     is_reaped = sa.Column(sa.Boolean, default=False)
-    is_validator = sa.Column(sa.Boolean, default=False)
-    is_nominator = sa.Column(sa.Boolean, default=False)
-    is_contract = sa.Column(sa.Boolean, default=False)
+
+    is_validator = sa.Column(sa.Boolean, default=False, index=True)
+    was_validator = sa.Column(sa.Boolean, default=False, index=True)
+    is_nominator = sa.Column(sa.Boolean, default=False, index=True)
+    was_nominator = sa.Column(sa.Boolean, default=False, index=True)
+    is_council_member = sa.Column(sa.Boolean, default=False, index=True)
+    was_council_member = sa.Column(sa.Boolean, default=False, index=True)
+    is_tech_comm_member = sa.Column(sa.Boolean, default=False, index=True)
+    was_tech_comm_member = sa.Column(sa.Boolean, default=False, index=True)
+    is_registrar = sa.Column(sa.Boolean, default=False, index=True)
+    was_registrar = sa.Column(sa.Boolean, default=False, index=True)
+    is_sudo = sa.Column(sa.Boolean, default=False, index=True)
+    was_sudo = sa.Column(sa.Boolean, default=False, index=True)
+
+    is_treasury = sa.Column(sa.Boolean, default=False, index=True)
+    is_contract = sa.Column(sa.Boolean, default=False, index=True)
+
     count_reaped = sa.Column(sa.Integer(), default=0)
-    balance = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
     hash_blake2b = sa.Column(sa.String(64), index=True, nullable=True)
+
+    balance_total = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True, index=True)
+    balance_free = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True, index=True)
+    balance_reserved = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True, index=True)
+    nonce = sa.Column(sa.Integer(), nullable=True)
+    account_info = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
+
+    has_identity = sa.Column(sa.Boolean, default=False, index=True)
+    has_subidentity = sa.Column(sa.Boolean, default=False, index=True)
     identity_display = sa.Column(sa.String(32), index=True, nullable=True)
     identity_legal = sa.Column(sa.String(32), nullable=True)
     identity_web = sa.Column(sa.String(32), nullable=True)
@@ -49,6 +71,9 @@ class Account(BaseModel):
     identity_twitter = sa.Column(sa.String(32), nullable=True)
     identity_judgement_good = sa.Column(sa.Integer(), default=0)
     identity_judgement_bad = sa.Column(sa.Integer(), default=0)
+    parent_identity = sa.Column(sa.String(64), index=True, nullable=True)
+    subidentity_display = sa.Column(sa.String(32), nullable=True)
+
     created_at_block = sa.Column(sa.Integer(), nullable=False)
     updated_at_block = sa.Column(sa.Integer(), nullable=False)
 
@@ -66,6 +91,19 @@ class AccountAudit(BaseModel):
     event_idx = sa.Column(sa.Integer())
     type_id = sa.Column(sa.Integer(), nullable=False)
     data = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
+
+
+class AccountInfoSnapshot(BaseModel):
+    __tablename__ = 'data_account_info_snapshot'
+
+    block_id = sa.Column(sa.Integer(), primary_key=True, index=True)
+    account_id = sa.Column(sa.String(64), primary_key=True, index=True)
+
+    balance_total = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True, index=True)
+    balance_free = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True, index=True)
+    balance_reserved = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True, index=True)
+    nonce = sa.Column(sa.Integer(), nullable=True)
+    account_info = sa.Column(sa.JSON(), default=None, server_default=None, nullable=True)
 
 
 class Block(BaseModel):
@@ -156,7 +194,7 @@ class BlockTotal(BaseModel):
     session_id = sa.Column(sa.Integer())
     parent_datetime = sa.Column(sa.DateTime())
     blocktime = sa.Column(sa.Integer(), nullable=False)
-    author = sa.Column(sa.String(64), nullable=True)
+    author = sa.Column(sa.String(64), nullable=True, index=True)
     author_account = relationship(Account, foreign_keys=[author], primaryjoin=author == Account.id)
     total_extrinsics = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
     total_extrinsics_success = sa.Column(sa.Numeric(precision=65, scale=0), nullable=False)
@@ -254,7 +292,14 @@ class Event(BaseModel):
                             'value': ss58_encode(other_item['who'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
                             'orig_value': other_item['who'].replace('0x', '')
                         }
-
+            elif item['type'] in ['Vec<(AccountId, Balance)>'] and item['value']:
+                for idx, vec_item in enumerate(item['value']):
+                    item['value'][idx]['account'] = {
+                        'name': 'account',
+                        'type': 'Address',
+                        'value': ss58_encode(vec_item['account'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE),
+                        'orig_value': vec_item['account'].replace('0x', '')
+                    }
         return obj_dict
 
 
@@ -723,13 +768,6 @@ class IdentityJudgement(BaseModel):
     updated_at_block = sa.Column(sa.Integer(), nullable=False)
 
 
-class SearchIndexType(BaseModel):
-    __tablename__ = 'data_account_search_index_type'
-
-    id = sa.Column(sa.Integer(), primary_key=True)
-    name = sa.Column(sa.String(64), nullable=False, index=True)
-
-
 class SearchIndex(BaseModel):
     __tablename__ = 'data_account_search_index'
 
@@ -740,3 +778,11 @@ class SearchIndex(BaseModel):
     account_id = sa.Column(sa.String(64), nullable=True, index=True)
     index_type_id = sa.Column(sa.Integer(), nullable=False, index=True)
     sorting_value = sa.Column(sa.Numeric(precision=65, scale=0), nullable=True, index=True)
+
+
+class SearchIndexType(BaseModel):
+    __tablename__ = 'data_account_search_index_type'
+
+    id = sa.Column(sa.Integer(), primary_key=True)
+    name = sa.Column(sa.String(64), nullable=False, index=True)
+

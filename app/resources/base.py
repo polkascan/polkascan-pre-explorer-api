@@ -24,6 +24,7 @@ from dogpile.cache import CacheRegion
 from dogpile.cache.api import NO_VALUE
 from sqlalchemy.orm import Session
 
+from app.models.base import BaseModel
 from app.settings import MAX_RESOURCE_PAGE_SIZE, DOGPILE_CACHE_SETTINGS
 
 
@@ -122,6 +123,9 @@ class JSONAPIListResource(JSONAPIResource, ABC):
 
     cache_expiration_time = DOGPILE_CACHE_SETTINGS['default_list_cache_expiration_time']
 
+    def get_included_items(self, items):
+        return []
+
     @abstractmethod
     def get_query(self):
         raise NotImplementedError()
@@ -140,7 +144,8 @@ class JSONAPIListResource(JSONAPIResource, ABC):
             'status': falcon.HTTP_200,
             'media': self.get_jsonapi_response(
                 data=[self.serialize_item(item) for item in items],
-                meta=self.get_meta()
+                meta=self.get_meta(),
+                included=self.get_included_items(items)
             ),
             'cacheable': True
         }
@@ -176,7 +181,7 @@ class JSONAPIDetailResource(JSONAPIResource, ABC):
                 'status': falcon.HTTP_200,
                 'media': self.get_jsonapi_response(
                     data=self.serialize_item(item),
-                    relationships=self.get_relationships(req.params.get('include') or [], item),
+                    relationships=self.get_relationships(req.params.get('include', []), item),
                     meta=self.get_meta()
                 ),
                 'cacheable': True
