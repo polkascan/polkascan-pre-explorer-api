@@ -713,16 +713,16 @@ class AccountDetailResource(JSONAPIDetailResource):
 
         # Get balance history
         account_info_snapshot = AccountInfoSnapshot.query(self.session).filter_by(
-                account_id=item.id
-        ).order_by(AccountInfoSnapshot.block_id.asc())[:1000]
+            account_id=item.id
+        ).order_by(AccountInfoSnapshot.block_id.desc())[:1000]
 
         data['attributes']['balance_history'] = [
             {
                 'name': "Total balance",
                 'type': 'line',
                 'data': [
-                    [item.block_id, float((item.balance_total or 0) / 10**settings.SUBSTRATE_TOKEN_DECIMALS)]
-                    for item in account_info_snapshot
+                    [item.block_id, float((item.balance_total or 0) / 10 ** settings.SUBSTRATE_TOKEN_DECIMALS)]
+                    for item in reversed(account_info_snapshot)
                 ],
             }
         ]
