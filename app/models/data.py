@@ -735,6 +735,7 @@ class RuntimeErrorMessage(BaseModel):
     id = sa.Column(sa.Integer(), primary_key=True)
     spec_version = sa.Column(sa.Integer())
     module_id = sa.Column(sa.String(64))
+    module_index = sa.Column(sa.Integer())
     index = sa.Column(sa.Integer())
     name = sa.Column(sa.String(255), index=True)
     documentation = sa.Column(sa.Text())
