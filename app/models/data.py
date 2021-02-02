@@ -259,7 +259,7 @@ class Event(BaseModel):
     def serialize_formatting_hook(self, obj_dict):
 
         for item in obj_dict['attributes']['attributes']:
-            if item['type'] in ['AccountId', 'AuthorityId', 'Address'] and item['value']:
+            if item['type'] in ['AccountId', 'AuthorityId', 'Address', 'LookupSource'] and item['value']:
                 # SS58 format AccountId public keys
                 item['orig_value'] = item['value'].replace('0x', '')
                 item['value'] = ss58_encode(item['value'].replace('0x', ''), SUBSTRATE_ADDRESS_TYPE)
