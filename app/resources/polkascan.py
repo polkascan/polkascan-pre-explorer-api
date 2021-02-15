@@ -733,7 +733,10 @@ class AccountDetailResource(JSONAPIDetailResource):
 
         if settings.USE_NODE_RETRIEVE_BALANCES == 'True':
 
-            substrate = SubstrateInterface(settings.SUBSTRATE_RPC_URL)
+            substrate = SubstrateInterface(
+                url=settings.SUBSTRATE_RPC_URL,
+                type_registry_preset=settings.TYPE_REGISTRY
+            )
 
             if settings.SUBSTRATE_STORAGE_BALANCE == 'Account':
                 storage_call = RuntimeStorage.query(self.session).filter_by(
