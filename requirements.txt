@@ -15,10 +15,9 @@ importlib-metadata==0.19
 jsonschema==2.6.0
 Mako==1.0.14
 MarkupSafe==1.1.1
-meinheld==1.0.1
+meinheld==1.0.2
 more-itertools==6.0.0
-mysql-connector==2.1.7
-mysql-connector-python==8.0.15
+mysql-connector-python~=8.0.23
 pluggy==0.12.0
 protobuf==3.9.1
 py==1.8.0
