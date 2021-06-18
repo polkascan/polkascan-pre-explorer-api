@@ -276,7 +276,10 @@ class ExtrinsicDetailResource(JSONAPIDetailResource):
 
         block = Block.query(self.session).get(item.block_id)
 
-        data['attributes']['datetime'] = block.datetime.replace(tzinfo=pytz.UTC).isoformat()
+        if block.datetime:
+            data['attributes']['datetime'] = block.datetime.replace(tzinfo=pytz.UTC).isoformat()
+        else:
+            data['attributes']['datetime'] = None
 
         if item.account:
             data['attributes']['account'] = item.account.serialize()
