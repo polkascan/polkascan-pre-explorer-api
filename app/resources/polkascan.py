@@ -752,7 +752,7 @@ class AccountDetailResource(JSONAPIDetailResource):
                         block_hash=None,
                         module='System',
                         function='Account',
-                        params=item.id,
+                        params=[item.id],
                         return_scale_type=storage_call.type_value,
                         hasher=storage_call.type_hasher,
                         metadata_version=settings.SUBSTRATE_METADATA_VERSION
@@ -777,7 +777,7 @@ class AccountDetailResource(JSONAPIDetailResource):
                         block_hash=None,
                         module='Balances',
                         function='Account',
-                        params=item.id,
+                        params=[item.id],
                         return_scale_type=storage_call.type_value,
                         hasher=storage_call.type_hasher,
                         metadata_version=settings.SUBSTRATE_METADATA_VERSION
@@ -801,7 +801,7 @@ class AccountDetailResource(JSONAPIDetailResource):
                         block_hash=None,
                         module='Balances',
                         function='FreeBalance',
-                        params=item.id,
+                        params=[item.id],
                         return_scale_type=storage_call.type_value,
                         hasher=storage_call.type_hasher,
                         metadata_version=settings.SUBSTRATE_METADATA_VERSION
@@ -817,7 +817,7 @@ class AccountDetailResource(JSONAPIDetailResource):
                         block_hash=None,
                         module='Balances',
                         function='ReservedBalance',
-                        params=item.id,
+                        params=[item.id],
                         return_scale_type=storage_call.type_value,
                         hasher=storage_call.type_hasher,
                         metadata_version=settings.SUBSTRATE_METADATA_VERSION
@@ -834,7 +834,7 @@ class AccountDetailResource(JSONAPIDetailResource):
                         block_hash=None,
                         module='System',
                         function='AccountNonce',
-                        params=item.id,
+                        params=[item.id],
                         return_scale_type=storage_call.type_value,
                         hasher=storage_call.type_hasher,
                         metadata_version=settings.SUBSTRATE_METADATA_VERSION
